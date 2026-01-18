@@ -134,11 +134,11 @@
 ## 3.1. このリポジトリのクローン
 どこか適当な開発用ディレクトリ (ディリレクトリ名のフルパスには、スペースや全角文字列を含まないことを推奨) を作成し、そのディレクトリに移動したのちに、コマンドラインから以下のとおりこのリポジトリのクローンをします。
 ```
-"C:\Program Files\Git\bin\git.exe" --recursive https://github.com/dnobori/DN_SuperBook_PDF_Converter.git
+"C:\Program Files\Git\bin\git.exe" clone --recursive https://github.com/dnobori/DN_SuperBook_PDF_Converter.git
 ```
 
-## 3.2. external_tool\image_tools\ ディレクトリの準備
-本プログラムが内部的に子プロセス等として呼び出す、第三者が配布しているプログラム等を、以下のとおりダウンロードし、`external_tool\image_tools\` というサブディレクトリに保存してください。以下のダウンロードする各プログラムは、各配布主体が配布するものであり、私が配布するものではありません。ダウンロードした各ファイルにマルウェア等か含まれないかどうかは、各自アンチウイルスソフトウェア等で慎重に確認してください。
+## 3.2. external_tools\external_tools\image_tools\ ディレクトリの準備
+本プログラムが内部的に子プロセス等として呼び出す、第三者が配布しているプログラム等を、以下のとおりダウンロードし、`external_tools\external_tools\image_tools\` というサブディレクトリに保存してください。以下のダウンロードする各プログラムは、各配布主体が配布するものであり、私が配布するものではありません。ダウンロードした各ファイルにマルウェア等か含まれないかどうかは、各自アンチウイルスソフトウェア等で慎重に確認してください。
 
 ### 3.2.1. exiftool-13.30_64 ディレクトリ
 [ExifTool](https://exiftool.org/) の Version 13.30 x64 を入れます。このディレクトリの直下に、`exiftool.exe` というファイルが置かれた状態にしてください。このソフトウェアはフリーソフトウェア (GPL ライセンス) なので、インターネット上からダウンロードすることが可能です。以下でも再配布しています。  
@@ -174,7 +174,7 @@ OCR エンジンのモデルデータである、[tesseract-ocr / tessdata_best]
 
 
 
-## 3.3. external_tool\image_tools\RealEsrgan\ ディレクトリの準備
+## 3.3. external_tools\external_tools\image_tools\RealEsrgan\ ディレクトリの準備
 
 1. [Python 3.11.9 for Windows](https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe) をインストールします。(他のバージョンでも良いかも知れません。)  
    インストール後、`%LOCALAPPDATA%\Programs\Python\Python311\python.exe` に `python.exe` が存在するという前提で、以下の解説をいたします。
