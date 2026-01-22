@@ -65,10 +65,12 @@ namespace SuperBookTools.App
             };
             ConsoleParamValueList vl = c.ParseCommandList(cmdName, str, args);
 
-            string srcDir = vl.DefaultParam.StrValue;
-            string dstDir = vl["dst"].StrValue;
+            string srcDir = (vl.DefaultParam.StrValue ?? throw new CoresException("srcDir is empty")).Trim().Trim('"');
+            string dstDir = (vl["dst"].StrValue ?? throw new CoresException("dstDir is empty")).Trim().Trim('"');
+            srcDir = Path.GetFullPath(srcDir);
+            srcDir = Path.GetFullPath(srcDir);
 
-            if (srcDir._IsSamei(dstDir) == false)
+            if (srcDir._IsSamei(dstDir) == true)
             {
                 throw new CoresException("srcDir must not be same to dstDir.");
             }
