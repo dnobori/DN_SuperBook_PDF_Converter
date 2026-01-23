@@ -605,6 +605,7 @@ mod tests {
         assert_eq!(TesseractPageDetector::parse_roman_numeral(""), None);
     }
 
+    // TC-PGN-006: 欠落ページ検出
     #[test]
     fn test_find_missing_pages() {
         let numbers = vec![1, 2, 3, 5, 6];
@@ -615,6 +616,7 @@ mod tests {
         assert!(TesseractPageDetector::find_missing_pages(&no_missing).is_empty());
     }
 
+    // TC-PGN-007: 重複ページ検出
     #[test]
     fn test_find_duplicate_pages() {
         let numbers = vec![1, 2, 3, 3, 4, 5, 5];
@@ -639,6 +641,7 @@ mod tests {
 
     // Image fixture tests (OCR functionality is simplified/placeholder)
 
+    // TC-PGN-001: 単一ページ番号検出
     #[test]
     fn test_detect_single_page_number() {
         // Note: Current implementation uses placeholder OCR that returns None
@@ -661,6 +664,7 @@ mod tests {
         }
     }
 
+    // TC-PGN-002: ページ番号なし
     #[test]
     fn test_no_page_number() {
         let result = TesseractPageDetector::detect_single(
@@ -678,6 +682,7 @@ mod tests {
         }
     }
 
+    // TC-PGN-003: バッチ分析
     #[test]
     fn test_batch_analysis() {
         let images: Vec<_> = (1..=10)

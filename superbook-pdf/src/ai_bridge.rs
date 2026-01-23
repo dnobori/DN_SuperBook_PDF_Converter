@@ -532,6 +532,7 @@ impl SubprocessBridge {
 mod tests {
     use super::*;
 
+    // TC-AIB-001: ブリッジ初期化（設定デフォルト）
     #[test]
     fn test_default_config() {
         let config = AiBridgeConfig::default();
@@ -542,6 +543,7 @@ mod tests {
         assert_eq!(config.retry_config.max_retries, 3);
     }
 
+    // TC-AIB-004: GPU状態確認（設定）
     #[test]
     fn test_gpu_config_default() {
         let config = GpuConfig::default();
@@ -567,6 +569,7 @@ mod tests {
         assert_eq!(AiTool::YomiToku.module_name(), "yomitoku");
     }
 
+    // TC-AIB-002: 仮想環境なしエラー
     #[test]
     fn test_missing_venv_error() {
         let config = AiBridgeConfig {
