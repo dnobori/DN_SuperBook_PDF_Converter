@@ -1186,4 +1186,233 @@ mod tests {
         ]);
         assert!(result.is_err());
     }
+
+    // ============ Concurrency Tests ============
+
+    #[test]
+    fn test_cli_types_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Cli>();
+        assert_send_sync::<Commands>();
+        assert_send_sync::<ConvertArgs>();
+        assert_send_sync::<ExitCode>();
+    }
+
+    #[test]
+    fn test_concurrent_cli_parsing() {
+        use std::thread;
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                thread::spawn(move || {
+                    let cli = Cli::try_parse_from([
+                        "superbook-pdf",
+                        "convert",
+                        &format!("input_{}.pdf", i),
+                        "--dpi",
+                        &(300 + i * 100).to_string(),
+                    ])
+                    .unwrap();
+                    if let Commands::Convert(args) = cli.command {
+                        args.dpi
+                    } else {
+                        0
+                    }
+                })
+            })
+            .collect();
+
+        let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        assert_eq!(results.len(), 4);
+        for (i, dpi) in results.iter().enumerate() {
+            assert_eq!(*dpi, 300 + (i as u32) * 100);
+        }
+    }
+
+    #[test]
+    fn test_exit_code_thread_transfer() {
+        use std::thread;
+
+        let codes = vec![
+            ExitCode::Success,
+            ExitCode::GeneralError,
+            ExitCode::InvalidArgs,
+            ExitCode::InputNotFound,
+        ];
+
+        let handles: Vec<_> = codes
+            .into_iter()
+            .map(|code| {
+                thread::spawn(move || {
+                    let c = code.code();
+                    let d = code.description().to_string();
+                    (c, d)
+                })
+            })
+            .collect();
+
+        let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        assert_eq!(results.len(), 4);
+        assert_eq!(results[0].0, 0);
+        assert_eq!(results[1].0, 1);
+        assert_eq!(results[2].0, 2);
+        assert_eq!(results[3].0, 3);
+    }
+
+    #[test]
+    fn test_convert_args_clone_across_threads() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--dpi", "600"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            let shared = Arc::new(args);
+
+            let handles: Vec<_> = (0..4)
+                .map(|_| {
+                    let args_clone = Arc::clone(&shared);
+                    thread::spawn(move || {
+                        assert_eq!(args_clone.dpi, 600);
+                        args_clone.effective_deskew()
+                    })
+                })
+                .collect();
+
+            for handle in handles {
+                let _ = handle.join().unwrap();
+            }
+        }
+    }
+
+    // ============ Boundary Value Tests ============
+
+    #[test]
+    fn test_dpi_boundary_minimum() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--dpi", "1"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.dpi, 1);
+        }
+    }
+
+    #[test]
+    fn test_dpi_boundary_maximum() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--dpi", "2400"])
+            .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.dpi, 2400);
+        }
+    }
+
+    #[test]
+    fn test_threads_boundary_one() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--threads", "1"])
+            .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.threads, Some(1));
+        }
+    }
+
+    #[test]
+    fn test_threads_boundary_large() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--threads", "128"])
+                .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.threads, Some(128));
+        }
+    }
+
+    #[test]
+    fn test_margin_trim_boundary_zero() {
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--margin-trim",
+            "0.0",
+        ])
+        .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.margin_trim, 0.0);
+        }
+    }
+
+    #[test]
+    fn test_margin_trim_boundary_large() {
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--margin-trim",
+            "50.0",
+        ])
+        .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.margin_trim, 50.0);
+        }
+    }
+
+    #[test]
+    fn test_verbose_boundary_maximum() {
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "-vvvvvvvv", // 8 v's
+        ])
+        .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.verbose, 8);
+        }
+    }
+
+    #[test]
+    fn test_exit_code_all_variants() {
+        let codes = [
+            ExitCode::Success,
+            ExitCode::GeneralError,
+            ExitCode::InvalidArgs,
+            ExitCode::InputNotFound,
+            ExitCode::OutputError,
+            ExitCode::ProcessingError,
+            ExitCode::GpuError,
+            ExitCode::ExternalToolError,
+        ];
+
+        for code in codes {
+            assert!(!code.description().is_empty());
+            assert!(code.code() <= 7);
+        }
+    }
+
+    #[test]
+    fn test_path_with_special_characters() {
+        let paths = [
+            "file with spaces.pdf",
+            "日本語ファイル.pdf",
+            "file-with-dashes.pdf",
+            "file_with_underscores.pdf",
+        ];
+
+        for path in paths {
+            let cli = Cli::try_parse_from(["superbook-pdf", "convert", path]).unwrap();
+            if let Commands::Convert(args) = cli.command {
+                assert_eq!(args.input.to_string_lossy(), path);
+            }
+        }
+    }
+
+    #[test]
+    fn test_output_path_variants() {
+        let outputs = ["./output", "/tmp/out", "../parent/out", "relative/path"];
+
+        for output in outputs {
+            let cli =
+                Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", output]).unwrap();
+            if let Commands::Convert(args) = cli.command {
+                assert_eq!(args.output.to_string_lossy(), output);
+            }
+        }
+    }
 }
