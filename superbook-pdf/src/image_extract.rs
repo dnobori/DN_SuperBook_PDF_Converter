@@ -167,48 +167,56 @@ pub struct ExtractOptionsBuilder {
 
 impl ExtractOptionsBuilder {
     /// Set output DPI (clamped to MIN_DPI-MAX_DPI)
+    #[must_use]
     pub fn dpi(mut self, dpi: u32) -> Self {
         self.options.dpi = dpi.clamp(MIN_DPI, MAX_DPI);
         self
     }
 
     /// Set output format
+    #[must_use]
     pub fn format(mut self, format: ImageFormat) -> Self {
         self.options.format = format;
         self
     }
 
     /// Set color space
+    #[must_use]
     pub fn colorspace(mut self, colorspace: ColorSpace) -> Self {
         self.options.colorspace = colorspace;
         self
     }
 
     /// Set background color for transparency handling
+    #[must_use]
     pub fn background(mut self, rgb: [u8; 3]) -> Self {
         self.options.background = Some(rgb);
         self
     }
 
     /// Disable background (keep transparency)
+    #[must_use]
     pub fn no_background(mut self) -> Self {
         self.options.background = None;
         self
     }
 
     /// Set number of parallel workers
+    #[must_use]
     pub fn parallel(mut self, workers: usize) -> Self {
         self.options.parallel = workers.max(1);
         self
     }
 
     /// Set progress callback
+    #[must_use]
     pub fn progress_callback(mut self, callback: Box<dyn Fn(usize, usize) + Send + Sync>) -> Self {
         self.options.progress_callback = Some(callback);
         self
     }
 
     /// Build the options
+    #[must_use]
     pub fn build(self) -> ExtractOptions {
         self.options
     }
@@ -489,12 +497,9 @@ impl LopdfExtractor {
                 if let Ok(subtype) = stream.dict.get(b"Subtype") {
                     if let Ok(subtype_name) = subtype.as_name_str() {
                         if subtype_name == "Image" {
-                            if let Ok(extracted) = Self::extract_image_stream(
-                                stream,
-                                image_count,
-                                obj_id,
-                                output_dir,
-                            ) {
+                            if let Ok(extracted) =
+                                Self::extract_image_stream(stream, image_count, obj_id, output_dir)
+                            {
                                 results.push(extracted);
                                 image_count += 1;
                             }
@@ -525,24 +530,33 @@ impl LopdfExtractor {
         output_dir: &Path,
     ) -> Result<ExtractedPage> {
         // Get image dimensions
-        let width = stream.dict.get(b"Width")
+        let width = stream
+            .dict
+            .get(b"Width")
             .ok()
             .and_then(|w| w.as_i64().ok())
             .unwrap_or(0) as u32;
-        let height = stream.dict.get(b"Height")
+        let height = stream
+            .dict
+            .get(b"Height")
             .ok()
             .and_then(|h| h.as_i64().ok())
             .unwrap_or(0) as u32;
 
         // Determine filter type
-        let filter = stream.dict.get(b"Filter")
+        let filter = stream
+            .dict
+            .get(b"Filter")
             .ok()
             .and_then(|f| f.as_name_str().ok())
             .unwrap_or("");
 
         // Only extract JPEG images (DCTDecode) - these are most common in scanned PDFs
         if filter == "DCTDecode" {
-            let output_path = output_dir.join(format!("page_{:04}_obj{}_{}.jpg", index, obj_id.0, obj_id.1));
+            let output_path = output_dir.join(format!(
+                "page_{:04}_obj{}_{}.jpg",
+                index, obj_id.0, obj_id.1
+            ));
 
             // JPEG data can be saved directly (no decompression needed)
             std::fs::write(&output_path, &stream.content)?;
@@ -560,7 +574,9 @@ impl LopdfExtractor {
         if let Ok(decoded) = stream.decompressed_content() {
             if width > 0 && height > 0 {
                 // Determine channels from ColorSpace
-                let channels = stream.dict.get(b"ColorSpace")
+                let channels = stream
+                    .dict
+                    .get(b"ColorSpace")
                     .ok()
                     .and_then(|cs| cs.as_name_str().ok())
                     .map(|name| match name {
@@ -573,23 +589,40 @@ impl LopdfExtractor {
 
                 let expected_size = (width as usize) * (height as usize) * channels;
                 if decoded.len() >= expected_size {
-                    let output_path = output_dir.join(format!("page_{:04}_obj{}_{}.png", index, obj_id.0, obj_id.1));
+                    let output_path = output_dir.join(format!(
+                        "page_{:04}_obj{}_{}.png",
+                        index, obj_id.0, obj_id.1
+                    ));
 
                     let img_opt = match channels {
-                        1 => image::GrayImage::from_raw(width, height, decoded[..expected_size].to_vec())
-                            .map(image::DynamicImage::ImageLuma8),
-                        3 => image::RgbImage::from_raw(width, height, decoded[..expected_size].to_vec())
-                            .map(image::DynamicImage::ImageRgb8),
+                        1 => image::GrayImage::from_raw(
+                            width,
+                            height,
+                            decoded[..expected_size].to_vec(),
+                        )
+                        .map(image::DynamicImage::ImageLuma8),
+                        3 => image::RgbImage::from_raw(
+                            width,
+                            height,
+                            decoded[..expected_size].to_vec(),
+                        )
+                        .map(image::DynamicImage::ImageRgb8),
                         4 => {
                             // CMYK to RGB conversion
                             let rgb: Vec<u8> = decoded[..expected_size]
                                 .chunks_exact(4)
                                 .flat_map(|cmyk| {
-                                    let (c, m, y, k) = (cmyk[0] as f32 / 255.0, cmyk[1] as f32 / 255.0,
-                                                        cmyk[2] as f32 / 255.0, cmyk[3] as f32 / 255.0);
-                                    [((1.0 - c) * (1.0 - k) * 255.0) as u8,
-                                     ((1.0 - m) * (1.0 - k) * 255.0) as u8,
-                                     ((1.0 - y) * (1.0 - k) * 255.0) as u8]
+                                    let (c, m, y, k) = (
+                                        cmyk[0] as f32 / 255.0,
+                                        cmyk[1] as f32 / 255.0,
+                                        cmyk[2] as f32 / 255.0,
+                                        cmyk[3] as f32 / 255.0,
+                                    );
+                                    [
+                                        ((1.0 - c) * (1.0 - k) * 255.0) as u8,
+                                        ((1.0 - m) * (1.0 - k) * 255.0) as u8,
+                                        ((1.0 - y) * (1.0 - k) * 255.0) as u8,
+                                    ]
                                 })
                                 .collect();
                             image::RgbImage::from_raw(width, height, rgb)
@@ -599,10 +632,11 @@ impl LopdfExtractor {
                     };
 
                     if let Some(img) = img_opt {
-                        img.save(&output_path).map_err(|e| ExtractError::ExtractionFailed {
-                            page: index,
-                            reason: format!("Failed to save: {}", e),
-                        })?;
+                        img.save(&output_path)
+                            .map_err(|e| ExtractError::ExtractionFailed {
+                                page: index,
+                                reason: format!("Failed to save: {}", e),
+                            })?;
                         return Ok(ExtractedPage {
                             page_index: index,
                             path: output_path,

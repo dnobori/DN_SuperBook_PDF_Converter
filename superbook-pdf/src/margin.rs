@@ -145,36 +145,42 @@ pub struct MarginOptionsBuilder {
 
 impl MarginOptionsBuilder {
     /// Set background threshold (0-255)
+    #[must_use]
     pub fn background_threshold(mut self, threshold: u8) -> Self {
         self.options.background_threshold = threshold;
         self
     }
 
     /// Set minimum margin in pixels
+    #[must_use]
     pub fn min_margin(mut self, margin: u32) -> Self {
         self.options.min_margin = margin;
         self
     }
 
     /// Set default trim percentage
+    #[must_use]
     pub fn default_trim_percent(mut self, percent: f32) -> Self {
         self.options.default_trim_percent = percent.clamp(MIN_PERCENT, MAX_PERCENT);
         self
     }
 
     /// Set edge detection sensitivity (0.0-1.0)
+    #[must_use]
     pub fn edge_sensitivity(mut self, sensitivity: f32) -> Self {
         self.options.edge_sensitivity = sensitivity.clamp(MIN_SENSITIVITY, MAX_SENSITIVITY);
         self
     }
 
     /// Set content detection mode
+    #[must_use]
     pub fn detection_mode(mut self, mode: ContentDetectionMode) -> Self {
         self.options.detection_mode = mode;
         self
     }
 
     /// Build the options
+    #[must_use]
     pub fn build(self) -> MarginOptions {
         self.options
     }

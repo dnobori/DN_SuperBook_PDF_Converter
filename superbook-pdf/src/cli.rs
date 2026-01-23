@@ -33,11 +33,13 @@ pub enum ExitCode {
 
 impl ExitCode {
     /// Convert to process exit code
+    #[must_use]
     pub fn code(self) -> i32 {
         self as i32
     }
 
     /// Get human-readable description
+    #[must_use]
     pub fn description(self) -> &'static str {
         match self {
             ExitCode::Success => "Success",

@@ -153,42 +153,49 @@ pub struct PdfWriterOptionsBuilder {
 
 impl PdfWriterOptionsBuilder {
     /// Set output DPI
+    #[must_use]
     pub fn dpi(mut self, dpi: u32) -> Self {
         self.options.dpi = dpi;
         self
     }
 
     /// Set JPEG quality (1-100)
+    #[must_use]
     pub fn jpeg_quality(mut self, quality: u8) -> Self {
         self.options.jpeg_quality = quality.clamp(MIN_JPEG_QUALITY, MAX_JPEG_QUALITY);
         self
     }
 
     /// Set compression method
+    #[must_use]
     pub fn compression(mut self, compression: ImageCompression) -> Self {
         self.options.compression = compression;
         self
     }
 
     /// Set page size mode
+    #[must_use]
     pub fn page_size_mode(mut self, mode: PageSizeMode) -> Self {
         self.options.page_size_mode = mode;
         self
     }
 
     /// Set metadata
+    #[must_use]
     pub fn metadata(mut self, metadata: PdfMetadata) -> Self {
         self.options.metadata = Some(metadata);
         self
     }
 
     /// Set OCR layer
+    #[must_use]
     pub fn ocr_layer(mut self, layer: OcrLayer) -> Self {
         self.options.ocr_layer = Some(layer);
         self
     }
 
     /// Build the options
+    #[must_use]
     pub fn build(self) -> PdfWriterOptions {
         self.options
     }

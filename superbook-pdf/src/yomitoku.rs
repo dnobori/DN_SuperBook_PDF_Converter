@@ -145,48 +145,56 @@ pub struct YomiTokuOptionsBuilder {
 
 impl YomiTokuOptionsBuilder {
     /// Set output format
+    #[must_use]
     pub fn output_format(mut self, format: OutputFormat) -> Self {
         self.options.output_format = format;
         self
     }
 
     /// Enable/disable GPU
+    #[must_use]
     pub fn use_gpu(mut self, use_gpu: bool) -> Self {
         self.options.use_gpu = use_gpu;
         self
     }
 
     /// Set GPU device ID
+    #[must_use]
     pub fn gpu_id(mut self, id: u32) -> Self {
         self.options.gpu_id = Some(id);
         self
     }
 
     /// Set confidence threshold
+    #[must_use]
     pub fn confidence_threshold(mut self, threshold: f32) -> Self {
         self.options.confidence_threshold = threshold.clamp(MIN_CONFIDENCE, MAX_CONFIDENCE);
         self
     }
 
     /// Set timeout in seconds
+    #[must_use]
     pub fn timeout(mut self, secs: u64) -> Self {
         self.options.timeout_secs = secs;
         self
     }
 
     /// Enable/disable vertical text detection
+    #[must_use]
     pub fn detect_vertical(mut self, detect: bool) -> Self {
         self.options.detect_vertical = detect;
         self
     }
 
     /// Set language hint
+    #[must_use]
     pub fn language(mut self, lang: Language) -> Self {
         self.options.language = lang;
         self
     }
 
     /// Build the options
+    #[must_use]
     pub fn build(self) -> YomiTokuOptions {
         self.options
     }

@@ -124,36 +124,42 @@ pub struct PageNumberOptionsBuilder {
 
 impl PageNumberOptionsBuilder {
     /// Set search region (percentage of image height, clamped to 5-50)
+    #[must_use]
     pub fn search_region_percent(mut self, percent: f32) -> Self {
         self.options.search_region_percent = percent.clamp(MIN_SEARCH_REGION, MAX_SEARCH_REGION);
         self
     }
 
     /// Set OCR language
+    #[must_use]
     pub fn ocr_language(mut self, lang: impl Into<String>) -> Self {
         self.options.ocr_language = lang.into();
         self
     }
 
     /// Set minimum confidence threshold (clamped to 0-100)
+    #[must_use]
     pub fn min_confidence(mut self, confidence: f32) -> Self {
         self.options.min_confidence = confidence.clamp(MIN_CONFIDENCE_CLAMP, MAX_CONFIDENCE_CLAMP);
         self
     }
 
     /// Set whether to detect numbers only
+    #[must_use]
     pub fn numbers_only(mut self, only: bool) -> Self {
         self.options.numbers_only = only;
         self
     }
 
     /// Set position hint
+    #[must_use]
     pub fn position_hint(mut self, position: PageNumberPosition) -> Self {
         self.options.position_hint = Some(position);
         self
     }
 
     /// Build the options
+    #[must_use]
     pub fn build(self) -> PageNumberOptions {
         self.options
     }

@@ -175,54 +175,63 @@ pub struct RealEsrganOptionsBuilder {
 
 impl RealEsrganOptionsBuilder {
     /// Set upscale factor (2 or 4)
+    #[must_use]
     pub fn scale(mut self, scale: u32) -> Self {
         self.options.scale = if scale >= 4 { 4 } else { 2 };
         self
     }
 
     /// Set model type
+    #[must_use]
     pub fn model(mut self, model: RealEsrganModel) -> Self {
         self.options.model = model;
         self
     }
 
     /// Set tile size for memory efficiency
+    #[must_use]
     pub fn tile_size(mut self, size: u32) -> Self {
         self.options.tile_size = size.clamp(MIN_TILE_SIZE, MAX_TILE_SIZE);
         self
     }
 
     /// Set tile padding
+    #[must_use]
     pub fn tile_padding(mut self, padding: u32) -> Self {
         self.options.tile_padding = padding;
         self
     }
 
     /// Set output format
+    #[must_use]
     pub fn output_format(mut self, format: OutputFormat) -> Self {
         self.options.output_format = format;
         self
     }
 
     /// Enable face enhancement
+    #[must_use]
     pub fn face_enhance(mut self, enable: bool) -> Self {
         self.options.face_enhance = enable;
         self
     }
 
     /// Set GPU device ID
+    #[must_use]
     pub fn gpu_id(mut self, id: u32) -> Self {
         self.options.gpu_id = Some(id);
         self
     }
 
     /// Enable FP16 mode for speed
+    #[must_use]
     pub fn fp16(mut self, enable: bool) -> Self {
         self.options.fp16 = enable;
         self
     }
 
     /// Build the options
+    #[must_use]
     pub fn build(self) -> RealEsrganOptions {
         self.options
     }

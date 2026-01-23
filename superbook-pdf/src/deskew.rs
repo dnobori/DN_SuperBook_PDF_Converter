@@ -136,36 +136,42 @@ pub struct DeskewOptionsBuilder {
 
 impl DeskewOptionsBuilder {
     /// Set the detection algorithm
+    #[must_use]
     pub fn algorithm(mut self, algorithm: DeskewAlgorithm) -> Self {
         self.options.algorithm = algorithm;
         self
     }
 
     /// Set the maximum detection angle
+    #[must_use]
     pub fn max_angle(mut self, angle: f64) -> Self {
         self.options.max_angle = angle.abs();
         self
     }
 
     /// Set the correction threshold angle
+    #[must_use]
     pub fn threshold_angle(mut self, angle: f64) -> Self {
         self.options.threshold_angle = angle.abs();
         self
     }
 
     /// Set the background color for rotated areas
+    #[must_use]
     pub fn background_color(mut self, color: [u8; 3]) -> Self {
         self.options.background_color = color;
         self
     }
 
     /// Set the quality mode
+    #[must_use]
     pub fn quality_mode(mut self, mode: QualityMode) -> Self {
         self.options.quality_mode = mode;
         self
     }
 
     /// Build the options
+    #[must_use]
     pub fn build(self) -> DeskewOptions {
         self.options
     }

@@ -13,7 +13,7 @@
 //! - **Margin Detection** ([`margin`]) - Detect and trim page margins
 //! - **Page Number Detection** ([`page_number`]) - OCR-based page number recognition
 //! - **AI Bridge** ([`ai_bridge`]) - Python subprocess bridge for AI tools
-//! - **YomiToku OCR** ([`yomitoku`]) - Japanese AI-OCR for searchable PDFs
+//! - **`YomiToku` OCR** ([`yomitoku`]) - Japanese AI-OCR for searchable PDFs
 //!
 //! # Quick Start
 //!
@@ -79,8 +79,8 @@
 //! - [`MarginError`] - Margin detection errors
 //! - [`PageNumberError`] - Page number detection errors
 //! - [`AiBridgeError`] - AI tool communication errors
-//! - [`RealEsrganError`] - RealESRGAN upscaling errors
-//! - [`YomiTokuError`] - YomiToku OCR errors
+//! - [`RealEsrganError`] - `RealESRGAN` upscaling errors
+//! - [`YomiTokuError`] - `YomiToku` OCR errors
 //!
 //! # CLI Exit Codes
 //!

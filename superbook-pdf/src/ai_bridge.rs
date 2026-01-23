@@ -104,11 +104,13 @@ impl Default for AiBridgeConfig {
 
 impl AiBridgeConfig {
     /// Create a new config builder
+    #[must_use]
     pub fn builder() -> AiBridgeConfigBuilder {
         AiBridgeConfigBuilder::default()
     }
 
     /// Create config for CPU-only processing
+    #[must_use]
     pub fn cpu_only() -> Self {
         Self {
             gpu_config: GpuConfig {
@@ -120,6 +122,7 @@ impl AiBridgeConfig {
     }
 
     /// Create config for low VRAM systems
+    #[must_use]
     pub fn low_vram() -> Self {
         Self {
             gpu_config: GpuConfig {
@@ -133,7 +136,7 @@ impl AiBridgeConfig {
     }
 }
 
-/// Builder for AiBridgeConfig
+/// Builder for [`AiBridgeConfig`]
 #[derive(Debug, Default)]
 pub struct AiBridgeConfigBuilder {
     config: AiBridgeConfig,
@@ -141,54 +144,63 @@ pub struct AiBridgeConfigBuilder {
 
 impl AiBridgeConfigBuilder {
     /// Set Python virtual environment path
+    #[must_use]
     pub fn venv_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.config.venv_path = path.into();
         self
     }
 
     /// Set GPU configuration
+    #[must_use]
     pub fn gpu_config(mut self, config: GpuConfig) -> Self {
         self.config.gpu_config = config;
         self
     }
 
     /// Enable or disable GPU
+    #[must_use]
     pub fn gpu_enabled(mut self, enabled: bool) -> Self {
         self.config.gpu_config.enabled = enabled;
         self
     }
 
     /// Set GPU device ID
+    #[must_use]
     pub fn gpu_device(mut self, id: u32) -> Self {
         self.config.gpu_config.device_id = Some(id);
         self
     }
 
     /// Set timeout duration
+    #[must_use]
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.config.timeout = timeout;
         self
     }
 
     /// Set retry configuration
+    #[must_use]
     pub fn retry_config(mut self, config: RetryConfig) -> Self {
         self.config.retry_config = config;
         self
     }
 
     /// Set maximum retry count
+    #[must_use]
     pub fn max_retries(mut self, count: u32) -> Self {
         self.config.retry_config.max_retries = count;
         self
     }
 
     /// Set log level
+    #[must_use]
     pub fn log_level(mut self, level: LogLevel) -> Self {
         self.config.log_level = level;
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> AiBridgeConfig {
         self.config
     }
@@ -299,6 +311,7 @@ pub enum AiTool {
 
 impl AiTool {
     /// Get the module name for Python
+    #[must_use]
     pub fn module_name(&self) -> &str {
         match self {
             AiTool::RealESRGAN => "realesrgan",
