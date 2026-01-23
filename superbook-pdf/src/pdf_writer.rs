@@ -1555,4 +1555,263 @@ mod tests {
         assert!(msg.contains("page 5"));
         assert!(msg.contains("0x1234"));
     }
+
+    // ============ Concurrency Tests ============
+
+    #[test]
+    fn test_pdf_writer_types_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<PdfWriterOptions>();
+        assert_send_sync::<ImageCompression>();
+        assert_send_sync::<PageSizeMode>();
+        assert_send_sync::<OcrLayer>();
+        assert_send_sync::<OcrPageText>();
+        assert_send_sync::<TextBlock>();
+    }
+
+    #[test]
+    fn test_concurrent_options_building() {
+        use std::thread;
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                thread::spawn(move || {
+                    PdfWriterOptions::builder()
+                        .dpi(300 + (i as u32 * 100))
+                        .jpeg_quality(80 + (i as u8 * 2))
+                        .compression(if i % 2 == 0 {
+                            ImageCompression::Jpeg
+                        } else {
+                            ImageCompression::Flate
+                        })
+                        .build()
+                })
+            })
+            .collect();
+
+        let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        assert_eq!(results.len(), 8);
+        for (i, opt) in results.iter().enumerate() {
+            assert_eq!(opt.dpi, 300 + (i as u32 * 100));
+        }
+    }
+
+    #[test]
+    fn test_parallel_text_block_creation() {
+        use rayon::prelude::*;
+
+        let blocks: Vec<_> = (0..100)
+            .into_par_iter()
+            .map(|i| TextBlock {
+                x: i as f64 * 10.0,
+                y: i as f64 * 20.0,
+                width: 100.0,
+                height: 20.0,
+                text: format!("Text block {}", i),
+                font_size: 12.0,
+                vertical: i % 2 == 0,
+            })
+            .collect();
+
+        assert_eq!(blocks.len(), 100);
+        for (i, block) in blocks.iter().enumerate() {
+            assert_eq!(block.x, i as f64 * 10.0);
+            assert!(block.text.contains(&i.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_ocr_layer_thread_transfer() {
+        use std::thread;
+
+        let layer = OcrLayer {
+            pages: vec![OcrPageText {
+                page_index: 0,
+                blocks: vec![TextBlock {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 100.0,
+                    height: 20.0,
+                    text: "Test".to_string(),
+                    font_size: 12.0,
+                    vertical: false,
+                }],
+            }],
+        };
+
+        let handle = thread::spawn(move || {
+            assert_eq!(layer.pages.len(), 1);
+            assert_eq!(layer.pages[0].blocks.len(), 1);
+            layer.pages[0].blocks[0].text.clone()
+        });
+
+        let result = handle.join().unwrap();
+        assert_eq!(result, "Test");
+    }
+
+    #[test]
+    fn test_options_shared_across_threads() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let options = Arc::new(
+            PdfWriterOptions::builder()
+                .dpi(600)
+                .jpeg_quality(95)
+                .build(),
+        );
+
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let opts = Arc::clone(&options);
+                thread::spawn(move || {
+                    assert_eq!(opts.dpi, 600);
+                    assert_eq!(opts.jpeg_quality, 95);
+                    opts.dpi
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            assert_eq!(handle.join().unwrap(), 600);
+        }
+    }
+
+    // ============ Boundary Value Tests ============
+
+    #[test]
+    fn test_dpi_boundary_minimum() {
+        let opts = PdfWriterOptions::builder().dpi(1).build();
+        assert_eq!(opts.dpi, 1);
+    }
+
+    #[test]
+    fn test_dpi_boundary_maximum() {
+        let opts = PdfWriterOptions::builder().dpi(2400).build();
+        assert_eq!(opts.dpi, 2400);
+    }
+
+    #[test]
+    fn test_jpeg_quality_clamped_to_min() {
+        let opts = PdfWriterOptions::builder().jpeg_quality(0).build();
+        assert_eq!(opts.jpeg_quality, MIN_JPEG_QUALITY); // Should clamp to 1
+    }
+
+    #[test]
+    fn test_jpeg_quality_clamped_to_max() {
+        let opts = PdfWriterOptions::builder().jpeg_quality(255).build();
+        assert_eq!(opts.jpeg_quality, MAX_JPEG_QUALITY); // Should clamp to 100
+    }
+
+    #[test]
+    fn test_text_block_zero_dimensions() {
+        let block = TextBlock {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+            text: String::new(),
+            font_size: 0.0,
+            vertical: false,
+        };
+        assert_eq!(block.width, 0.0);
+        assert_eq!(block.height, 0.0);
+    }
+
+    #[test]
+    fn test_text_block_large_dimensions() {
+        let block = TextBlock {
+            x: 10000.0,
+            y: 10000.0,
+            width: 5000.0,
+            height: 1000.0,
+            text: "Large page".to_string(),
+            font_size: 144.0,
+            vertical: true,
+        };
+        assert_eq!(block.width, 5000.0);
+        assert!(block.vertical);
+    }
+
+    #[test]
+    fn test_font_size_boundary_small() {
+        let block = TextBlock {
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 10.0,
+            text: "Tiny".to_string(),
+            font_size: 1.0,
+            vertical: false,
+        };
+        assert_eq!(block.font_size, 1.0);
+    }
+
+    #[test]
+    fn test_font_size_boundary_large() {
+        let block = TextBlock {
+            x: 0.0,
+            y: 0.0,
+            width: 1000.0,
+            height: 500.0,
+            text: "HUGE".to_string(),
+            font_size: 500.0,
+            vertical: false,
+        };
+        assert_eq!(block.font_size, 500.0);
+    }
+
+    #[test]
+    fn test_fixed_page_size_zero() {
+        let mode = PageSizeMode::Fixed {
+            width_pt: 0.0,
+            height_pt: 0.0,
+        };
+        if let PageSizeMode::Fixed {
+            width_pt,
+            height_pt,
+        } = mode
+        {
+            assert_eq!(width_pt, 0.0);
+            assert_eq!(height_pt, 0.0);
+        }
+    }
+
+    #[test]
+    fn test_fixed_page_size_a4() {
+        // A4 in points: 595.28 x 841.89
+        let mode = PageSizeMode::Fixed {
+            width_pt: 595.28,
+            height_pt: 841.89,
+        };
+        if let PageSizeMode::Fixed {
+            width_pt,
+            height_pt,
+        } = mode
+        {
+            assert!((width_pt - 595.28).abs() < 0.01);
+            assert!((height_pt - 841.89).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn test_ocr_page_text_empty_blocks() {
+        let page = OcrPageText {
+            page_index: 0,
+            blocks: vec![],
+        };
+        assert!(page.blocks.is_empty());
+    }
+
+    #[test]
+    fn test_ocr_layer_many_pages_boundary() {
+        let pages: Vec<OcrPageText> = (0..1000)
+            .map(|i| OcrPageText {
+                page_index: i,
+                blocks: vec![],
+            })
+            .collect();
+
+        let layer = OcrLayer { pages };
+        assert_eq!(layer.pages.len(), 1000);
+    }
 }
