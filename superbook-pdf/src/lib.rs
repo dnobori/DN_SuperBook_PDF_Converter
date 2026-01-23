@@ -267,7 +267,9 @@ mod tests {
         let _mrg = MarginOptions::builder().min_margin(5).build();
         let _pgn = PageNumberOptions::builder().min_confidence(70.0).build();
         let _res = RealEsrganOptions::builder().scale(2).build();
-        let _yomi = YomiTokuOptions::builder().language(yomitoku::Language::Japanese).build();
+        let _yomi = YomiTokuOptions::builder()
+            .language(yomitoku::Language::Japanese)
+            .build();
         let _ai = AiBridgeConfig::builder().max_retries(3).build();
     }
 
@@ -366,7 +368,10 @@ mod tests {
         // High quality should be 4x
         assert_eq!(quality.scale, 4);
         // Anime preset should have anime model
-        assert!(matches!(anime.model, realesrgan::RealEsrganModel::X4PlusAnime));
+        assert!(matches!(
+            anime.model,
+            realesrgan::RealEsrganModel::X4PlusAnime
+        ));
     }
 
     // ============ Util Function Tests ============
@@ -384,7 +389,10 @@ mod tests {
     fn test_format_file_size() {
         assert!(format_file_size(500).contains("B"));
         assert!(format_file_size(1024).contains("K") || format_file_size(1024).contains("1"));
-        assert!(format_file_size(1024 * 1024).contains("M") || format_file_size(1024 * 1024).contains("1"));
+        assert!(
+            format_file_size(1024 * 1024).contains("M")
+                || format_file_size(1024 * 1024).contains("1")
+        );
     }
 
     #[test]
@@ -500,7 +508,9 @@ mod tests {
         };
 
         // Create writer options with metadata
-        let opts = PdfWriterOptions::builder().metadata(metadata.clone()).build();
+        let opts = PdfWriterOptions::builder()
+            .metadata(metadata.clone())
+            .build();
 
         assert!(opts.metadata.is_some());
         let writer_meta = opts.metadata.unwrap();
@@ -537,11 +547,7 @@ mod tests {
             ImageFormat::Tiff,
         ];
 
-        let colorspaces = [
-            ColorSpace::Rgb,
-            ColorSpace::Grayscale,
-            ColorSpace::Cmyk,
-        ];
+        let colorspaces = [ColorSpace::Rgb, ColorSpace::Grayscale, ColorSpace::Cmyk];
 
         // All combinations should be valid
         for format in &formats {
