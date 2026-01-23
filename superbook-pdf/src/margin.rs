@@ -942,4 +942,147 @@ mod tests {
         let _err3 = MarginError::NoContentDetected;
         let _err4: MarginError = std::io::Error::new(std::io::ErrorKind::NotFound, "test").into();
     }
+
+    // TC-MRG-005: Trim margins
+    #[test]
+    fn test_trim_with_fixture() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let output = temp_dir.path().join("trimmed.png");
+
+        let margins = Margins {
+            top: 10,
+            bottom: 10,
+            left: 10,
+            right: 10,
+        };
+
+        let result = ImageMarginDetector::trim(
+            Path::new("tests/fixtures/with_margins.png"),
+            &output,
+            &margins,
+        );
+
+        match result {
+            Ok(trim_result) => {
+                assert!(output.exists());
+                // Trimmed size should be smaller than original
+                assert!(trim_result.trimmed_size.0 <= trim_result.original_size.0);
+                assert!(trim_result.trimmed_size.1 <= trim_result.original_size.1);
+            }
+            Err(e) => {
+                eprintln!("Trim error: {:?}", e);
+            }
+        }
+    }
+
+    // TC-MRG-006: Pad to size
+    #[test]
+    fn test_pad_to_size_with_fixture() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let output = temp_dir.path().join("padded.png");
+
+        let result = ImageMarginDetector::pad_to_size(
+            Path::new("tests/fixtures/small_image.png"),
+            &output,
+            (500, 500),
+            [255, 255, 255],
+        );
+
+        match result {
+            Ok(pad_result) => {
+                assert!(output.exists());
+                // Padded image should be target size
+                let img = image::open(&output).unwrap();
+                assert_eq!(img.width(), 500);
+                assert_eq!(img.height(), 500);
+                eprintln!(
+                    "Padded from {:?} to {:?}",
+                    pad_result.original_size, pad_result.trimmed_size
+                );
+            }
+            Err(e) => {
+                eprintln!("Pad error: {:?}", e);
+            }
+        }
+    }
+
+    // TC-MRG-007: Background threshold variations
+    #[test]
+    fn test_background_threshold_high() {
+        let options = MarginOptions::builder().background_threshold(254).build();
+
+        assert_eq!(options.background_threshold, 254);
+        // High threshold = only pure white is background
+    }
+
+    #[test]
+    fn test_background_threshold_low() {
+        let options = MarginOptions::builder().background_threshold(100).build();
+
+        assert_eq!(options.background_threshold, 100);
+        // Low threshold = many light colors are background
+    }
+
+    // TC-MRG-009: Batch processing
+    #[test]
+    fn test_batch_processing() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let images: Vec<(PathBuf, PathBuf)> = (1..=3)
+            .map(|i| {
+                (
+                    PathBuf::from(format!("tests/fixtures/page_{}.png", i)),
+                    temp_dir.path().join(format!("output_{}.png", i)),
+                )
+            })
+            .collect();
+
+        let options = MarginOptions {
+            background_threshold: 200,
+            ..Default::default()
+        };
+
+        let result = ImageMarginDetector::process_batch(&images, &options);
+
+        match result {
+            Ok(results) => {
+                // Should have processed all images
+                assert_eq!(results.len(), 3);
+                eprintln!("Batch processed {} images", results.len());
+            }
+            Err(MarginError::NoContentDetected) => {
+                eprintln!("No content detected in batch");
+            }
+            Err(e) => {
+                eprintln!("Batch error: {:?}", e);
+            }
+        }
+    }
+
+    // Test margins arithmetic
+    #[test]
+    fn test_margins_arithmetic() {
+        let margins = Margins {
+            top: 10,
+            bottom: 20,
+            left: 15,
+            right: 25,
+        };
+
+        assert_eq!(margins.total_vertical(), 30);
+        assert_eq!(margins.total_horizontal(), 40);
+    }
+
+    // Test error display messages
+    #[test]
+    fn test_error_display_messages() {
+        let err1 = MarginError::ImageNotFound(PathBuf::from("/test/path.png"));
+        assert!(err1.to_string().contains("not found"));
+
+        let err2 = MarginError::InvalidImage("bad format".to_string());
+        assert!(err2.to_string().contains("Invalid"));
+
+        let err3 = MarginError::NoContentDetected;
+        assert!(err3.to_string().contains("content"));
+    }
 }

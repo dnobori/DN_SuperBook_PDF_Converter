@@ -390,4 +390,99 @@ mod tests {
         assert_eq!(code, cloned);
         assert_eq!(code, copied);
     }
+
+    // Additional CLI tests
+
+    #[test]
+    fn test_thread_count_default() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf"]).unwrap();
+
+        if let Commands::Convert(args) = cli.command {
+            // Should default to available CPUs
+            assert!(args.thread_count() > 0);
+        } else {
+            panic!("Expected Convert command");
+        }
+    }
+
+    #[test]
+    fn test_thread_count_explicit() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--threads", "4"])
+            .unwrap();
+
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.thread_count(), 4);
+        } else {
+            panic!("Expected Convert command");
+        }
+    }
+
+    #[test]
+    fn test_all_flags_combination() {
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--ocr",
+            "--no-upscale",
+            "--no-deskew",
+            "--no-gpu",
+            "--quiet",
+            "--dry-run",
+            "-vvv",
+        ])
+        .unwrap();
+
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.ocr);
+            assert!(!args.effective_upscale());
+            assert!(!args.effective_deskew());
+            assert!(!args.effective_gpu());
+            assert!(args.quiet);
+            assert!(args.dry_run);
+            assert_eq!(args.verbose, 3);
+        } else {
+            panic!("Expected Convert command");
+        }
+    }
+
+    #[test]
+    fn test_margin_trim_setting() {
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--margin-trim",
+            "1.5",
+        ])
+        .unwrap();
+
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.margin_trim, 1.5);
+        } else {
+            panic!("Expected Convert command");
+        }
+    }
+
+    #[test]
+    fn test_dpi_setting() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--dpi", "600"]).unwrap();
+
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.dpi, 600);
+        } else {
+            panic!("Expected Convert command");
+        }
+    }
+
+    #[test]
+    fn test_exit_code_to_process_exit_code() {
+        let code: std::process::ExitCode = ExitCode::Success.into();
+        // ExitCode doesn't expose its value, but we can verify conversion works
+        let _ = code;
+
+        let code: std::process::ExitCode = ExitCode::GeneralError.into();
+        let _ = code;
+    }
 }

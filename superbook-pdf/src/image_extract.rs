@@ -186,7 +186,7 @@ impl ImageFormat {
 }
 
 /// Color space options
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ColorSpace {
     #[default]
     Rgb,
@@ -747,5 +747,113 @@ mod tests {
         // Transparent (no background)
         let options = ExtractOptions::builder().no_background().build();
         assert!(options.background.is_none());
+    }
+
+    // TC-EXT-007: 並列抽出
+    #[test]
+    fn test_parallel_extraction_config() {
+        // Test parallel thread configuration
+        let options_single = ExtractOptions::builder().parallel(1).build();
+        assert_eq!(options_single.parallel, 1);
+
+        let options_multi = ExtractOptions::builder().parallel(4).build();
+        assert_eq!(options_multi.parallel, 4);
+
+        let options_max = ExtractOptions::builder().parallel(16).build();
+        assert_eq!(options_max.parallel, 16);
+
+        // parallel(0) should be clamped to 1
+        let options_zero = ExtractOptions::builder().parallel(0).build();
+        assert_eq!(options_zero.parallel, 1);
+    }
+
+    // TC-EXT-008: 進捗コールバック
+    #[test]
+    fn test_progress_callback_structure() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        // Test that progress callback can be set
+        let progress_count = Arc::new(AtomicUsize::new(0));
+        let progress_clone = progress_count.clone();
+
+        let options = ExtractOptions::builder()
+            .progress_callback(Box::new(move |current, total| {
+                progress_clone.fetch_add(1, Ordering::SeqCst);
+                assert!(current <= total);
+            }))
+            .build();
+
+        // Verify callback is set
+        assert!(options.progress_callback.is_some());
+
+        // Call the callback to verify it works
+        if let Some(callback) = &options.progress_callback {
+            callback(1, 10);
+            callback(5, 10);
+            callback(10, 10);
+        }
+
+        assert_eq!(progress_count.load(Ordering::SeqCst), 3);
+    }
+
+    // TC-EXT-010: 書き込み不可ディレクトリエラー追加テスト
+    #[test]
+    fn test_output_not_writable_error_display() {
+        let err = ExtractError::OutputNotWritable(std::path::PathBuf::from("/root/protected"));
+        let display = format!("{}", err);
+        assert!(display.contains("/root/protected"));
+        assert!(display.contains("not writable") || display.contains("writable"));
+    }
+
+    #[test]
+    fn test_extracted_page_display() {
+        let page = ExtractedPage {
+            page_index: 0,
+            path: std::path::PathBuf::from("/tmp/page_001.png"),
+            width: 2480,
+            height: 3508,
+            format: ImageFormat::Png,
+        };
+
+        assert_eq!(page.page_index, 0);
+        assert_eq!(page.width, 2480);
+        assert_eq!(page.height, 3508);
+        assert!(page.path.to_string_lossy().contains("page_001"));
+    }
+
+    #[test]
+    fn test_colorspace_all_variants() {
+        // Test all colorspace variants exist and can be used
+        let colorspaces = [ColorSpace::Rgb, ColorSpace::Grayscale, ColorSpace::Cmyk];
+
+        for cs in &colorspaces {
+            let options = ExtractOptions::builder().colorspace(*cs).build();
+            assert_eq!(options.colorspace, *cs);
+        }
+    }
+
+    #[test]
+    fn test_image_format_all_variants() {
+        // Test all image format variants
+        let formats = [
+            ImageFormat::Png,
+            ImageFormat::Jpeg { quality: 85 },
+            ImageFormat::Bmp,
+            ImageFormat::Tiff,
+        ];
+
+        for fmt in &formats {
+            let options = ExtractOptions::builder().format(fmt.clone()).build();
+            match (&options.format, fmt) {
+                (ImageFormat::Png, ImageFormat::Png) => {}
+                (ImageFormat::Tiff, ImageFormat::Tiff) => {}
+                (ImageFormat::Bmp, ImageFormat::Bmp) => {}
+                (ImageFormat::Jpeg { quality: q1 }, ImageFormat::Jpeg { quality: q2 }) => {
+                    assert_eq!(q1, q2);
+                }
+                _ => panic!("Format mismatch"),
+            }
+        }
     }
 }

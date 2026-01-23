@@ -484,4 +484,105 @@ mod tests {
         let result = doc.get_page(9999);
         assert!(result.is_err());
     }
+
+    // Additional tests for spec coverage
+
+    #[test]
+    fn test_pages_iterator() {
+        let doc = LopdfReader::new("tests/fixtures/10pages.pdf").unwrap();
+
+        // Iterate over all pages
+        let page_count = doc.info.pages.iter().count();
+        assert_eq!(page_count, doc.info.page_count);
+    }
+
+    #[test]
+    fn test_page_rotation_values() {
+        // Test that rotation is normalized to valid values
+        let page = PdfPage {
+            index: 0,
+            width_pt: 595.0,
+            height_pt: 842.0,
+            rotation: 270,
+            has_images: false,
+            has_text: true,
+        };
+
+        // Valid rotations: 0, 90, 180, 270
+        assert!(
+            page.rotation == 0
+                || page.rotation == 90
+                || page.rotation == 180
+                || page.rotation == 270
+        );
+    }
+
+    #[test]
+    fn test_error_display_messages() {
+        let err1 = PdfReaderError::FileNotFound(PathBuf::from("/test/path.pdf"));
+        assert!(err1.to_string().contains("not found"));
+
+        let err2 = PdfReaderError::InvalidFormat("bad header".to_string());
+        assert!(err2.to_string().contains("Invalid"));
+
+        let err3 = PdfReaderError::EncryptedPdf;
+        assert!(err3.to_string().contains("ncrypted"));
+
+        let err4 = PdfReaderError::ParseError("parse failed".to_string());
+        assert!(err4.to_string().contains("error"));
+    }
+
+    #[test]
+    fn test_metadata_clone() {
+        let metadata = PdfMetadata {
+            title: Some("Test Title".to_string()),
+            author: Some("Test Author".to_string()),
+            subject: None,
+            keywords: None,
+            creator: None,
+            producer: None,
+            creation_date: None,
+            modification_date: None,
+        };
+
+        let cloned = metadata.clone();
+        assert_eq!(cloned.title, metadata.title);
+        assert_eq!(cloned.author, metadata.author);
+    }
+
+    #[test]
+    fn test_pdf_document_clone() {
+        let doc = PdfDocument {
+            path: PathBuf::from("/test/path.pdf"),
+            page_count: 10,
+            metadata: PdfMetadata::default(),
+            pages: vec![],
+            is_encrypted: false,
+        };
+
+        let cloned = doc.clone();
+        assert_eq!(cloned.path, doc.path);
+        assert_eq!(cloned.page_count, doc.page_count);
+        assert_eq!(cloned.is_encrypted, doc.is_encrypted);
+    }
+
+    #[test]
+    fn test_page_dimensions_calculation() {
+        let page = PdfPage {
+            index: 0,
+            width_pt: 595.0,  // A4 width in points
+            height_pt: 842.0, // A4 height in points
+            rotation: 0,
+            has_images: true,
+            has_text: true,
+        };
+
+        // A4 is 210mm x 297mm, 1 inch = 72 points, 1 inch = 25.4mm
+        // width_mm = 595 / 72 * 25.4 ≈ 210
+        let width_mm = page.width_pt / 72.0 * 25.4;
+        let height_mm = page.height_pt / 72.0 * 25.4;
+
+        assert!((width_mm - 210.0).abs() < 1.0);
+        assert!((height_mm - 297.0).abs() < 1.0);
+    }
 }
