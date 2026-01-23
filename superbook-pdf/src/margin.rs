@@ -1085,4 +1085,207 @@ mod tests {
         let err3 = MarginError::NoContentDetected;
         assert!(err3.to_string().contains("content"));
     }
+
+    // Test Margins construction with various values
+    #[test]
+    fn test_margins_construction() {
+        let margins = Margins {
+            top: 50,
+            bottom: 60,
+            left: 30,
+            right: 40,
+        };
+
+        assert_eq!(margins.top, 50);
+        assert_eq!(margins.bottom, 60);
+        assert_eq!(margins.left, 30);
+        assert_eq!(margins.right, 40);
+    }
+
+    // Test zero margins
+    #[test]
+    fn test_margins_zero() {
+        let margins = Margins {
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+        };
+
+        assert_eq!(margins.total_vertical(), 0);
+        assert_eq!(margins.total_horizontal(), 0);
+    }
+
+    // Test asymmetric margins
+    #[test]
+    fn test_margins_asymmetric() {
+        let margins = Margins {
+            top: 100,
+            bottom: 50,
+            left: 20,
+            right: 80,
+        };
+
+        assert_ne!(margins.top, margins.bottom);
+        assert_ne!(margins.left, margins.right);
+        assert_eq!(margins.total_vertical(), 150);
+        assert_eq!(margins.total_horizontal(), 100);
+    }
+
+    // Test MarginOptions builder all options
+    #[test]
+    fn test_margin_options_builder_all() {
+        let options = MarginOptions::builder()
+            .background_threshold(200)
+            .min_margin(5)
+            .edge_sensitivity(0.8)
+            .build();
+
+        assert_eq!(options.background_threshold, 200);
+        assert_eq!(options.min_margin, 5);
+        assert_eq!(options.edge_sensitivity, 0.8);
+    }
+
+    // Test default MarginOptions values
+    #[test]
+    fn test_margin_options_default() {
+        let options = MarginOptions::default();
+
+        // Verify reasonable defaults
+        assert!(options.background_threshold > 0);
+        assert!(options.background_threshold <= 255);
+    }
+
+    // Test TrimResult fields and consistency
+    #[test]
+    fn test_trim_result_fields_consistency() {
+        let result = TrimResult {
+            input_path: PathBuf::from("/input/original.png"),
+            output_path: PathBuf::from("/output/trimmed.png"),
+            original_size: (1000, 800),
+            trimmed_size: (900, 750),
+            margins_applied: Margins {
+                top: 20,
+                bottom: 30,
+                left: 50,
+                right: 50,
+            },
+        };
+
+        assert_eq!(result.original_size.0, 1000);
+        assert_eq!(result.trimmed_size.1, 750);
+        // Verify margins add up correctly
+        let expected_width =
+            result.original_size.0 - result.margins_applied.left - result.margins_applied.right;
+        assert_eq!(expected_width, result.trimmed_size.0);
+    }
+
+    // Test TrimResult unchanged image
+    #[test]
+    fn test_trim_result_unchanged() {
+        let result = TrimResult {
+            input_path: PathBuf::from("/input/same.png"),
+            output_path: PathBuf::from("/output/same.png"),
+            original_size: (500, 500),
+            trimmed_size: (500, 500), // No trimming needed
+            margins_applied: Margins {
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+            },
+        };
+
+        assert_eq!(result.original_size, result.trimmed_size);
+        assert_eq!(result.margins_applied.total_vertical(), 0);
+        assert_eq!(result.margins_applied.total_horizontal(), 0);
+    }
+
+    // Test edge sensitivity variations
+    #[test]
+    fn test_edge_sensitivity_variations() {
+        // Zero sensitivity
+        let opts_zero = MarginOptions::builder().edge_sensitivity(0.0).build();
+        assert_eq!(opts_zero.edge_sensitivity, 0.0);
+
+        // High sensitivity
+        let opts_high = MarginOptions::builder().edge_sensitivity(1.0).build();
+        assert_eq!(opts_high.edge_sensitivity, 1.0);
+    }
+
+    // Test min margin variations
+    #[test]
+    fn test_min_margin_variations() {
+        // Zero min margin
+        let opts_zero = MarginOptions::builder().min_margin(0).build();
+        assert_eq!(opts_zero.min_margin, 0);
+
+        // Large min margin
+        let opts_large = MarginOptions::builder().min_margin(100).build();
+        assert_eq!(opts_large.min_margin, 100);
+    }
+
+    // Test IO error conversion
+    #[test]
+    fn test_io_error_conversion() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let margin_err: MarginError = io_err.into();
+
+        let msg = margin_err.to_string().to_lowercase();
+        assert!(msg.contains("io") || msg.contains("error"));
+    }
+
+    // Test large margins
+    #[test]
+    fn test_large_margins() {
+        let margins = Margins {
+            top: 500,
+            bottom: 500,
+            left: 300,
+            right: 300,
+        };
+
+        assert_eq!(margins.total_vertical(), 1000);
+        assert_eq!(margins.total_horizontal(), 600);
+    }
+
+    // Test background threshold edge cases
+    #[test]
+    fn test_background_threshold_edges() {
+        // Minimum (only black is not background)
+        let opts_min = MarginOptions::builder().background_threshold(1).build();
+        assert_eq!(opts_min.background_threshold, 1);
+
+        // Maximum (everything is background)
+        let opts_max = MarginOptions::builder().background_threshold(255).build();
+        assert_eq!(opts_max.background_threshold, 255);
+    }
+
+    // Test TrimResult with significant trimming
+    #[test]
+    fn test_trim_result_significant_trimming() {
+        let result = TrimResult {
+            input_path: PathBuf::from("/input/large.png"),
+            output_path: PathBuf::from("/output/heavily_trimmed.png"),
+            original_size: (2000, 3000),
+            trimmed_size: (1600, 2400), // 20% trimmed
+            margins_applied: Margins {
+                top: 300,
+                bottom: 300,
+                left: 200,
+                right: 200,
+            },
+        };
+
+        // Verify significant size reduction
+        assert!(result.trimmed_size.0 < result.original_size.0);
+        assert!(result.trimmed_size.1 < result.original_size.1);
+
+        // Verify margins consistency
+        let vertical_reduction = result.original_size.1 - result.trimmed_size.1;
+        assert_eq!(
+            vertical_reduction,
+            result.margins_applied.total_vertical() as u32
+        );
+    }
 }
