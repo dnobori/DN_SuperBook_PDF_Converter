@@ -442,6 +442,47 @@ impl SubprocessBridge {
         })
     }
 
+    /// Execute a raw command with timeout
+    ///
+    /// This is a lower-level method for executing custom Python scripts
+    /// with arbitrary arguments and a configurable timeout.
+    pub fn execute_with_timeout(&self, args: &[String], timeout: Duration) -> Result<String> {
+        let python = self.get_python_path();
+
+        let mut cmd = Command::new(&python);
+        cmd.args(args);
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+
+        let child = cmd.spawn().map_err(|e| {
+            AiBridgeError::ProcessFailed(format!("Failed to spawn process: {}", e))
+        })?;
+
+        // Wait for completion and check timeout
+        let start = std::time::Instant::now();
+        let output = child.wait_with_output().map_err(|e| {
+            AiBridgeError::ProcessFailed(format!("Process error: {}", e))
+        })?;
+
+        if start.elapsed() > timeout {
+            return Err(AiBridgeError::Timeout(timeout));
+        }
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("out of memory") || stderr.contains("CUDA error") {
+                return Err(AiBridgeError::OutOfMemory);
+            }
+            return Err(AiBridgeError::ProcessFailed(format!(
+                "Process exited with status {}: {}",
+                output.status,
+                stderr
+            )));
+        }
+
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+
     /// Cancel running process (placeholder)
     pub fn cancel(&self) -> Result<()> {
         // In a full implementation, this would track and kill running processes

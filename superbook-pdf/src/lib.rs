@@ -81,6 +81,7 @@ pub mod pdf_reader;
 pub mod pdf_writer;
 pub mod realesrgan;
 pub mod util;
+pub mod yomitoku;
 
 // Re-exports for convenience
 pub use ai_bridge::{
@@ -105,6 +106,10 @@ pub use page_number::{
 pub use pdf_reader::{LopdfReader, PdfDocument, PdfMetadata, PdfPage, PdfReaderError};
 pub use pdf_writer::{PdfWriterError, PdfWriterOptions, PdfWriterOptionsBuilder, PrintPdfWriter};
 pub use realesrgan::{RealEsrgan, RealEsrganError, RealEsrganOptions, RealEsrganOptionsBuilder};
+pub use yomitoku::{
+    BatchOcrResult, OcrResult, TextBlock, TextDirection, YomiToku, YomiTokuError, YomiTokuOptions,
+    YomiTokuOptionsBuilder,
+};
 pub use util::{
     clamp, ensure_dir_writable, ensure_file_exists, format_duration, format_file_size, load_image,
     mm_to_pixels, mm_to_points, percentage, pixels_to_mm, points_to_mm,

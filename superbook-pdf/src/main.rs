@@ -9,6 +9,7 @@ use superbook_pdf::{
     exit_codes, AiBridgeConfig, Cli, Commands, ConvertArgs, DeskewOptions, ExtractOptions,
     ImageMarginDetector, ImageProcDeskewer, LopdfReader, MagickExtractor, MarginOptions,
     PdfWriterOptions, PrintPdfWriter, RealEsrgan, RealEsrganOptions, SubprocessBridge,
+    YomiToku, YomiTokuOptions,
 };
 
 fn main() {
@@ -350,7 +351,68 @@ fn process_single_pdf(
         images_after_trim
     };
 
-    // Step 5: Generate output PDF
+    // Step 6: OCR with YomiToku (if enabled)
+    let ocr_results = if args.ocr {
+        if verbose {
+            println!("  Running OCR (YomiToku)...");
+        }
+
+        // Try to initialize YomiToku via SubprocessBridge
+        let venv_path = std::env::var("SUPERBOOK_VENV")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("./venv"));
+
+        let bridge_config = AiBridgeConfig::builder().venv_path(venv_path).build();
+
+        match SubprocessBridge::new(bridge_config) {
+            Ok(bridge) => {
+                let yomitoku = YomiToku::new(bridge);
+                let mut ocr_opts = YomiTokuOptions::builder();
+                if args.effective_gpu() {
+                    ocr_opts = ocr_opts.use_gpu(true).gpu_id(0);
+                }
+                let ocr_opts = ocr_opts.build();
+
+                let mut results = Vec::new();
+                for (i, img_path) in images_for_pdf.iter().enumerate() {
+                    match yomitoku.ocr(img_path, &ocr_opts) {
+                        Ok(result) => {
+                            if verbose && args.verbose > 1 {
+                                println!(
+                                    "    Page {}: {} text blocks detected",
+                                    i + 1,
+                                    result.text_blocks.len()
+                                );
+                            }
+                            results.push(Some(result));
+                        }
+                        Err(e) => {
+                            if verbose {
+                                println!("    Page {}: OCR failed ({})", i + 1, e);
+                            }
+                            results.push(None);
+                        }
+                    }
+                }
+
+                if verbose {
+                    let success_count = results.iter().filter(|r| r.is_some()).count();
+                    println!("    OCR completed: {}/{} pages", success_count, results.len());
+                }
+                results
+            }
+            Err(e) => {
+                if verbose {
+                    println!("    Note: YomiToku not available ({}), skipping OCR", e);
+                }
+                vec![]
+            }
+        }
+    } else {
+        vec![]
+    };
+
+    // Step 7: Generate output PDF
     if verbose {
         println!("  Generating output PDF...");
     }
@@ -360,6 +422,9 @@ fn process_single_pdf(
         .dpi(args.dpi)
         .metadata(reader.info.metadata.clone())
         .build();
+
+    // TODO: Pass OCR results to PDF writer when OCR layer support is fully implemented
+    let _ = ocr_results; // Suppress unused warning for now
 
     PrintPdfWriter::create_from_images(&images_for_pdf, &output_pdf, &pdf_options)?;
 
