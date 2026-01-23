@@ -272,6 +272,30 @@ fn bench_pdf_metadata(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark ExitCode operations
+fn bench_exit_codes(c: &mut Criterion) {
+    use superbook_pdf::ExitCode;
+
+    let mut group = c.benchmark_group("exit_codes");
+
+    group.bench_function("ExitCode::code", |b| {
+        b.iter(|| black_box(ExitCode::ProcessingError.code()))
+    });
+
+    group.bench_function("ExitCode::description", |b| {
+        b.iter(|| black_box(ExitCode::InputNotFound.description()))
+    });
+
+    group.bench_function("ExitCode::into_i32", |b| {
+        b.iter(|| {
+            let code: i32 = ExitCode::GpuError.into();
+            black_box(code)
+        })
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_option_builders,
@@ -282,6 +306,7 @@ criterion_group!(
     bench_margin_structures,
     bench_page_number_parsing,
     bench_pdf_metadata,
+    bench_exit_codes,
 );
 
 criterion_main!(benches);
