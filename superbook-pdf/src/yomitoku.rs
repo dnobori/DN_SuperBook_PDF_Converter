@@ -1543,4 +1543,222 @@ mod tests {
         assert_eq!(results.successful.len(), 2);
         assert!(results.failed.is_empty());
     }
+
+    // ==================== Concurrency Tests ====================
+
+    #[test]
+    fn test_yomitoku_types_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<YomiTokuOptions>();
+        assert_send_sync::<TextBlock>();
+        assert_send_sync::<OcrResult>();
+        assert_send_sync::<BatchOcrResult>();
+    }
+
+    #[test]
+    fn test_concurrent_options_building() {
+        use std::thread;
+
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                thread::spawn(move || -> YomiTokuOptions {
+                    YomiTokuOptions::builder()
+                        .confidence_threshold(0.3 + (i as f32 * 0.1))
+                        .timeout(100 + i as u64 * 50)
+                        .build()
+                })
+            })
+            .collect();
+
+        for (i, handle) in handles.into_iter().enumerate() {
+            let opts: YomiTokuOptions = handle.join().unwrap();
+            let expected_conf = 0.3 + (i as f32 * 0.1);
+            assert!((opts.confidence_threshold - expected_conf).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn test_ocr_result_thread_transfer() {
+        use std::thread;
+
+        let result = OcrResult {
+            input_path: std::path::PathBuf::from("test.png"),
+            text_blocks: vec![TextBlock {
+                text: "テスト".to_string(),
+                bbox: (10, 20, 100, 50),
+                confidence: 0.95,
+                direction: TextDirection::Vertical,
+                font_size: Some(12.0),
+            }],
+            confidence: 0.95,
+            processing_time: Duration::from_millis(200),
+            text_direction: TextDirection::Vertical,
+        };
+
+        let handle = thread::spawn(move || {
+            assert_eq!(result.text_blocks.len(), 1);
+            assert_eq!(result.text_blocks[0].text, "テスト");
+            result
+        });
+
+        let received = handle.join().unwrap();
+        assert_eq!(received.confidence, 0.95);
+    }
+
+    #[test]
+    fn test_options_shared_across_threads() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let opts = Arc::new(
+            YomiTokuOptions::builder()
+                .confidence_threshold(0.7)
+                .language(Language::Japanese)
+                .build(),
+        );
+
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let o = Arc::clone(&opts);
+                thread::spawn(move || {
+                    assert!((o.confidence_threshold - 0.7).abs() < 0.001);
+                    o.confidence_threshold
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            let conf = handle.join().unwrap();
+            assert!((conf - 0.7).abs() < 0.001);
+        }
+    }
+
+    // ==================== Boundary Value Tests ====================
+
+    #[test]
+    fn test_confidence_threshold_boundary_zero() {
+        let opts = YomiTokuOptions::builder()
+            .confidence_threshold(0.0)
+            .build();
+        assert_eq!(opts.confidence_threshold, 0.0);
+    }
+
+    #[test]
+    fn test_confidence_threshold_boundary_one() {
+        let opts = YomiTokuOptions::builder()
+            .confidence_threshold(1.0)
+            .build();
+        assert_eq!(opts.confidence_threshold, 1.0);
+    }
+
+    #[test]
+    fn test_timeout_secs_zero() {
+        let opts = YomiTokuOptions::builder().timeout(0).build();
+        assert_eq!(opts.timeout_secs, 0);
+    }
+
+    #[test]
+    fn test_timeout_secs_large() {
+        let opts = YomiTokuOptions::builder().timeout(86400).build();
+        assert_eq!(opts.timeout_secs, 86400);
+    }
+
+    #[test]
+    fn test_bbox_zero_dimensions() {
+        let block = TextBlock {
+            text: "test".to_string(),
+            bbox: (0, 0, 0, 0),
+            confidence: 0.5,
+            direction: TextDirection::Horizontal,
+            font_size: None,
+        };
+        assert_eq!(block.bbox.2, 0); // width
+        assert_eq!(block.bbox.3, 0); // height
+    }
+
+    #[test]
+    fn test_bbox_large_dimensions() {
+        let block = TextBlock {
+            text: "large".to_string(),
+            bbox: (10000, 20000, 5000, 3000),
+            confidence: 0.9,
+            direction: TextDirection::Horizontal,
+            font_size: Some(24.0),
+        };
+        assert_eq!(block.bbox.0, 10000); // x
+        assert_eq!(block.bbox.2, 5000); // width
+    }
+
+    #[test]
+    fn test_text_block_empty_text_boundary() {
+        let block = TextBlock {
+            text: String::new(),
+            bbox: (0, 0, 100, 50),
+            confidence: 0.5,
+            direction: TextDirection::Horizontal,
+            font_size: None,
+        };
+        assert!(block.text.is_empty());
+    }
+
+    #[test]
+    fn test_text_block_unicode_boundary() {
+        let block = TextBlock {
+            text: "日本語テキスト🎉".to_string(),
+            bbox: (0, 0, 200, 100),
+            confidence: 0.99,
+            direction: TextDirection::Vertical,
+            font_size: Some(16.0),
+        };
+        assert!(block.text.contains("日本語"));
+        assert!(block.text.contains("🎉"));
+    }
+
+    #[test]
+    fn test_processing_time_nanos_boundary() {
+        let result = OcrResult {
+            input_path: std::path::PathBuf::from("nano.png"),
+            text_blocks: vec![],
+            confidence: 1.0,
+            processing_time: Duration::from_nanos(1),
+            text_direction: TextDirection::Horizontal,
+        };
+        assert_eq!(result.processing_time.as_nanos(), 1);
+    }
+
+    #[test]
+    fn test_batch_result_empty_boundary() {
+        let results = BatchOcrResult {
+            successful: vec![],
+            failed: vec![],
+            total_time: Duration::ZERO,
+        };
+        assert!(results.successful.is_empty());
+        assert!(results.failed.is_empty());
+        assert_eq!(results.total_time, Duration::ZERO);
+    }
+
+    #[test]
+    fn test_font_size_none() {
+        let block = TextBlock {
+            text: "no size".to_string(),
+            bbox: (0, 0, 50, 20),
+            confidence: 0.8,
+            direction: TextDirection::Horizontal,
+            font_size: None,
+        };
+        assert!(block.font_size.is_none());
+    }
+
+    #[test]
+    fn test_font_size_zero() {
+        let block = TextBlock {
+            text: "zero size".to_string(),
+            bbox: (0, 0, 50, 20),
+            confidence: 0.8,
+            direction: TextDirection::Horizontal,
+            font_size: Some(0.0),
+        };
+        assert_eq!(block.font_size, Some(0.0));
+    }
 }
