@@ -585,4 +585,240 @@ mod tests {
         assert!((width_mm - 210.0).abs() < 1.0);
         assert!((height_mm - 297.0).abs() < 1.0);
     }
+
+    // Test page rotation effect on dimensions
+    #[test]
+    fn test_page_rotation_dimensions() {
+        // Portrait page
+        let portrait = PdfPage {
+            index: 0,
+            width_pt: 595.0,
+            height_pt: 842.0,
+            rotation: 0,
+            has_images: false,
+            has_text: false,
+        };
+        assert!(portrait.height_pt > portrait.width_pt);
+
+        // Same page rotated 90 degrees would appear landscape
+        let rotated = PdfPage {
+            index: 0,
+            width_pt: 595.0,
+            height_pt: 842.0,
+            rotation: 90,
+            has_images: false,
+            has_text: false,
+        };
+        // After 90 degree rotation, effective dimensions swap
+        assert_eq!(rotated.rotation, 90);
+    }
+
+    // Test all rotation values
+    #[test]
+    fn test_all_rotation_values() {
+        let rotations = [0, 90, 180, 270];
+
+        for rotation in rotations {
+            let page = PdfPage {
+                index: 0,
+                width_pt: 595.0,
+                height_pt: 842.0,
+                rotation,
+                has_images: false,
+                has_text: false,
+            };
+            assert!(page.rotation % 90 == 0);
+            assert!(page.rotation < 360);
+        }
+    }
+
+    // Test metadata with all fields populated
+    #[test]
+    fn test_metadata_all_fields() {
+        let metadata = PdfMetadata {
+            title: Some("Complete Document".to_string()),
+            author: Some("John Doe".to_string()),
+            subject: Some("Testing".to_string()),
+            keywords: Some("test, pdf, rust".to_string()),
+            creator: Some("Test Creator".to_string()),
+            producer: Some("superbook-pdf".to_string()),
+            creation_date: Some("2024-01-01".to_string()),
+            modification_date: Some("2024-01-02".to_string()),
+        };
+
+        assert!(metadata.title.is_some());
+        assert!(metadata.author.is_some());
+        assert!(metadata.subject.is_some());
+        assert!(metadata.keywords.is_some());
+        assert!(metadata.creator.is_some());
+        assert!(metadata.producer.is_some());
+        assert!(metadata.creation_date.is_some());
+        assert!(metadata.modification_date.is_some());
+    }
+
+    // Test PdfDocument with pages
+    #[test]
+    fn test_document_with_pages() {
+        let pages: Vec<PdfPage> = (0..5)
+            .map(|i| PdfPage {
+                index: i,
+                width_pt: 595.0,
+                height_pt: 842.0,
+                rotation: 0,
+                has_images: i % 2 == 0,
+                has_text: true,
+            })
+            .collect();
+
+        let doc = PdfDocument {
+            path: PathBuf::from("/test/doc.pdf"),
+            page_count: 5,
+            metadata: PdfMetadata::default(),
+            pages: pages.clone(),
+            is_encrypted: false,
+        };
+
+        assert_eq!(doc.pages.len(), 5);
+        assert_eq!(doc.page_count, 5);
+
+        // Check page indices are sequential
+        for (i, page) in doc.pages.iter().enumerate() {
+            assert_eq!(page.index, i);
+        }
+    }
+
+    // Test encrypted document flag
+    #[test]
+    fn test_encrypted_document() {
+        let encrypted_doc = PdfDocument {
+            path: PathBuf::from("/test/encrypted.pdf"),
+            page_count: 1,
+            metadata: PdfMetadata::default(),
+            pages: vec![],
+            is_encrypted: true,
+        };
+
+        assert!(encrypted_doc.is_encrypted);
+
+        let normal_doc = PdfDocument {
+            path: PathBuf::from("/test/normal.pdf"),
+            page_count: 1,
+            metadata: PdfMetadata::default(),
+            pages: vec![],
+            is_encrypted: false,
+        };
+
+        assert!(!normal_doc.is_encrypted);
+    }
+
+    // Test page with only images
+    #[test]
+    fn test_page_images_only() {
+        let page = PdfPage {
+            index: 0,
+            width_pt: 595.0,
+            height_pt: 842.0,
+            rotation: 0,
+            has_images: true,
+            has_text: false,
+        };
+
+        assert!(page.has_images);
+        assert!(!page.has_text);
+    }
+
+    // Test page with only text
+    #[test]
+    fn test_page_text_only() {
+        let page = PdfPage {
+            index: 0,
+            width_pt: 595.0,
+            height_pt: 842.0,
+            rotation: 0,
+            has_images: false,
+            has_text: true,
+        };
+
+        assert!(!page.has_images);
+        assert!(page.has_text);
+    }
+
+    // Test empty page
+    #[test]
+    fn test_empty_page() {
+        let page = PdfPage {
+            index: 0,
+            width_pt: 595.0,
+            height_pt: 842.0,
+            rotation: 0,
+            has_images: false,
+            has_text: false,
+        };
+
+        assert!(!page.has_images);
+        assert!(!page.has_text);
+    }
+
+    // Test various page sizes
+    #[test]
+    fn test_various_page_sizes() {
+        // A4 (210 x 297 mm)
+        let a4 = PdfPage {
+            index: 0,
+            width_pt: 595.0,
+            height_pt: 842.0,
+            rotation: 0,
+            has_images: false,
+            has_text: false,
+        };
+
+        // Letter (8.5 x 11 inches = 612 x 792 points)
+        let letter = PdfPage {
+            index: 0,
+            width_pt: 612.0,
+            height_pt: 792.0,
+            rotation: 0,
+            has_images: false,
+            has_text: false,
+        };
+
+        // Legal (8.5 x 14 inches = 612 x 1008 points)
+        let legal = PdfPage {
+            index: 0,
+            width_pt: 612.0,
+            height_pt: 1008.0,
+            rotation: 0,
+            has_images: false,
+            has_text: false,
+        };
+
+        assert!((a4.width_pt - 595.0).abs() < 1.0);
+        assert!((letter.width_pt - 612.0).abs() < 1.0);
+        assert!((legal.height_pt - 1008.0).abs() < 1.0);
+    }
+
+    // Test IO error conversion
+    #[test]
+    fn test_io_error_conversion() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
+        let pdf_err: PdfReaderError = io_err.into();
+
+        let msg = pdf_err.to_string().to_lowercase();
+        assert!(msg.contains("io") || msg.contains("error"));
+    }
+
+    // Test document path handling
+    #[test]
+    fn test_document_path() {
+        let doc = PdfDocument {
+            path: PathBuf::from("/long/path/to/document.pdf"),
+            page_count: 1,
+            metadata: PdfMetadata::default(),
+            pages: vec![],
+            is_encrypted: false,
+        };
+
+        assert_eq!(doc.path.file_name().unwrap(), "document.pdf");
+        assert!(doc.path.is_absolute());
+    }
 }

@@ -1041,4 +1041,199 @@ mod tests {
         let err4 = DeskewError::CorrectionFailed("rotation failed".to_string());
         assert!(err4.to_string().contains("rotation"));
     }
+
+    // Test SkewDetection construction with various values
+    #[test]
+    fn test_skew_detection_various_values() {
+        let detection = SkewDetection {
+            angle: -2.5,
+            confidence: 0.95,
+            feature_count: 250,
+        };
+
+        assert_eq!(detection.angle, -2.5);
+        assert_eq!(detection.confidence, 0.95);
+        assert_eq!(detection.feature_count, 250);
+    }
+
+    // Test detection with zero angle
+    #[test]
+    fn test_skew_detection_zero_angle() {
+        let detection = SkewDetection {
+            angle: 0.0,
+            confidence: 1.0,
+            feature_count: 500,
+        };
+
+        assert_eq!(detection.angle, 0.0);
+        // Perfect alignment should have high confidence
+        assert!(detection.confidence >= 0.9);
+    }
+
+    // Test DeskewResult not corrected
+    #[test]
+    fn test_deskew_result_not_corrected() {
+        let detection = SkewDetection {
+            angle: 0.05,
+            confidence: 0.99,
+            feature_count: 300,
+        };
+
+        let result = DeskewResult {
+            detection,
+            corrected: false, // Below threshold, not corrected
+            output_path: PathBuf::from("/output/unchanged.png"),
+            original_size: (1920, 1080),
+            corrected_size: (1920, 1080), // Same size since not corrected
+        };
+
+        assert!(!result.corrected);
+        assert_eq!(result.original_size, result.corrected_size);
+    }
+
+    // Test DeskewOptions threshold_angle
+    #[test]
+    fn test_deskew_options_threshold_angle() {
+        let options = DeskewOptions::builder().threshold_angle(0.5).build();
+        assert_eq!(options.threshold_angle, 0.5);
+
+        let options_low = DeskewOptions::builder().threshold_angle(0.01).build();
+        assert_eq!(options_low.threshold_angle, 0.01);
+    }
+
+    // Test DeskewOptions quality mode
+    #[test]
+    fn test_deskew_options_quality_mode() {
+        let quality_fast = DeskewOptions::builder()
+            .quality_mode(QualityMode::Fast)
+            .build();
+        assert!(matches!(quality_fast.quality_mode, QualityMode::Fast));
+
+        let quality_standard = DeskewOptions::builder()
+            .quality_mode(QualityMode::Standard)
+            .build();
+        assert!(matches!(
+            quality_standard.quality_mode,
+            QualityMode::Standard
+        ));
+
+        let quality_high = DeskewOptions::builder()
+            .quality_mode(QualityMode::HighQuality)
+            .build();
+        assert!(matches!(
+            quality_high.quality_mode,
+            QualityMode::HighQuality
+        ));
+    }
+
+    // Test all QualityMode variants
+    #[test]
+    fn test_all_quality_mode_variants() {
+        let modes = [
+            QualityMode::Fast,
+            QualityMode::Standard,
+            QualityMode::HighQuality,
+        ];
+
+        for mode in modes {
+            let options = DeskewOptions::builder().quality_mode(mode).build();
+            match options.quality_mode {
+                QualityMode::Fast => {}
+                QualityMode::Standard => {}
+                QualityMode::HighQuality => {}
+            }
+        }
+    }
+
+    // Test DeskewOptions builder chaining
+    #[test]
+    fn test_deskew_options_builder_chaining() {
+        let options = DeskewOptions::builder()
+            .max_angle(10.0)
+            .threshold_angle(0.2)
+            .background_color([200, 200, 200])
+            .quality_mode(QualityMode::HighQuality)
+            .build();
+
+        assert_eq!(options.max_angle, 10.0);
+        assert_eq!(options.threshold_angle, 0.2);
+        assert_eq!(options.background_color, [200, 200, 200]);
+        assert!(matches!(options.quality_mode, QualityMode::HighQuality));
+    }
+
+    // Test negative angle detection
+    #[test]
+    fn test_negative_angle_detection() {
+        let detection = SkewDetection {
+            angle: -3.5,
+            confidence: 0.85,
+            feature_count: 150,
+        };
+
+        assert!(detection.angle < 0.0);
+        assert_eq!(detection.angle, -3.5);
+    }
+
+    // Test size change after correction
+    #[test]
+    fn test_size_change_after_correction() {
+        let detection = SkewDetection {
+            angle: 5.0,
+            confidence: 0.9,
+            feature_count: 200,
+        };
+
+        // After rotation, image dimensions may change
+        let result = DeskewResult {
+            detection,
+            corrected: true,
+            output_path: PathBuf::from("/output/corrected.png"),
+            original_size: (1000, 1000),
+            corrected_size: (1050, 1050), // Slightly larger due to rotation
+        };
+
+        assert!(result.corrected_size.0 >= result.original_size.0);
+        assert!(result.corrected_size.1 >= result.original_size.1);
+    }
+
+    // Test feature count edge cases
+    #[test]
+    fn test_feature_count_edge_cases() {
+        // Low feature count (poor detection)
+        let low_features = SkewDetection {
+            angle: 1.0,
+            confidence: 0.3,
+            feature_count: 5,
+        };
+        assert!(low_features.feature_count < 10);
+
+        // High feature count (reliable detection)
+        let high_features = SkewDetection {
+            angle: 1.0,
+            confidence: 0.98,
+            feature_count: 1000,
+        };
+        assert!(high_features.feature_count > 500);
+    }
+
+    // Test IO error conversion
+    #[test]
+    fn test_io_error_conversion() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let deskew_err: DeskewError = io_err.into();
+
+        let msg = deskew_err.to_string().to_lowercase();
+        assert!(msg.contains("io") || msg.contains("error"));
+    }
+
+    // Test default options values
+    #[test]
+    fn test_default_options_values() {
+        let default_opts = DeskewOptions::default();
+
+        // Verify reasonable defaults
+        assert!(default_opts.max_angle > 0.0);
+        assert!(default_opts.threshold_angle >= 0.0);
+        assert_eq!(default_opts.background_color.len(), 3);
+    }
 }
