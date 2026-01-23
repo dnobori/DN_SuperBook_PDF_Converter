@@ -212,4 +212,56 @@ mod tests {
         assert_eq!(percentage(100, 100), 100.0);
         assert_eq!(percentage(0, 0), 0.0); // Edge case: no div by zero
     }
+
+    #[test]
+    fn test_ensure_dir_writable() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let result = ensure_dir_writable(temp_dir.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_ensure_dir_writable_creates_dir() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let new_dir = temp_dir.path().join("new_subdir");
+        let result = ensure_dir_writable(&new_dir);
+        assert!(result.is_ok());
+        assert!(new_dir.exists());
+    }
+
+    #[test]
+    fn test_roundtrip_mm_pixels() {
+        // Test roundtrip conversion
+        let original_mm = 100.0f32;
+        let dpi = 300u32;
+        let pixels = mm_to_pixels(original_mm, dpi);
+        let back_to_mm = pixels_to_mm(pixels, dpi);
+        assert!((original_mm - back_to_mm).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_roundtrip_mm_points() {
+        // Test roundtrip conversion
+        let original_mm = 100.0f32;
+        let points = mm_to_points(original_mm);
+        let back_to_mm = points_to_mm(points);
+        assert!((original_mm - back_to_mm).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_format_file_size_edge_cases() {
+        // Just under KB
+        assert_eq!(format_file_size(1023), "1023 B");
+        // Exact boundaries
+        assert_eq!(format_file_size(1024 * 1024 - 1), "1024.00 KB");
+    }
+
+    #[test]
+    fn test_clamp_boundary_values() {
+        // Exact boundary values
+        assert_eq!(clamp(0, 0, 10), 0);
+        assert_eq!(clamp(10, 0, 10), 10);
+        // Same min and max
+        assert_eq!(clamp(5, 5, 5), 5);
+    }
 }
