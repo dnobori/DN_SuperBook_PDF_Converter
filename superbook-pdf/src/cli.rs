@@ -684,4 +684,506 @@ mod tests {
             panic!("Expected Convert command");
         }
     }
+
+    // ============ Debug Implementation Tests ============
+
+    #[test]
+    fn test_exit_code_debug_impl() {
+        let code = ExitCode::Success;
+        let debug_str = format!("{:?}", code);
+        assert!(debug_str.contains("Success"));
+
+        let code2 = ExitCode::ProcessingError;
+        let debug_str2 = format!("{:?}", code2);
+        assert!(debug_str2.contains("ProcessingError"));
+    }
+
+    #[test]
+    fn test_cli_debug_impl() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf"]).unwrap();
+        let debug_str = format!("{:?}", cli);
+        assert!(debug_str.contains("Cli"));
+        assert!(debug_str.contains("command"));
+    }
+
+    #[test]
+    fn test_commands_debug_impl() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "info"]).unwrap();
+        let debug_str = format!("{:?}", cli.command);
+        assert!(debug_str.contains("Info"));
+
+        let cli2 = Cli::try_parse_from(["superbook-pdf", "convert", "test.pdf"]).unwrap();
+        let debug_str2 = format!("{:?}", cli2.command);
+        assert!(debug_str2.contains("Convert"));
+    }
+
+    #[test]
+    fn test_convert_args_debug_impl() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--ocr"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            let debug_str = format!("{:?}", args);
+            assert!(debug_str.contains("ConvertArgs"));
+            assert!(debug_str.contains("input"));
+            assert!(debug_str.contains("ocr"));
+        }
+    }
+
+    // ============ Clone/Copy Tests ============
+
+    #[test]
+    fn test_exit_code_copy() {
+        let original = ExitCode::GpuError;
+        let copied: ExitCode = original; // Copy
+        let _still_valid = original; // original still valid due to Copy
+        assert_eq!(copied, ExitCode::GpuError);
+    }
+
+    #[test]
+    fn test_exit_code_clone() {
+        let original = ExitCode::OutputError;
+        let cloned = original.clone();
+        assert_eq!(original, cloned);
+    }
+
+    // ============ ExitCode Additional Tests ============
+
+    #[test]
+    fn test_all_exit_code_descriptions_non_empty() {
+        let codes = [
+            ExitCode::Success,
+            ExitCode::GeneralError,
+            ExitCode::InvalidArgs,
+            ExitCode::InputNotFound,
+            ExitCode::OutputError,
+            ExitCode::ProcessingError,
+            ExitCode::GpuError,
+            ExitCode::ExternalToolError,
+        ];
+
+        for code in codes {
+            let desc = code.description();
+            assert!(!desc.is_empty(), "Description for {:?} is empty", code);
+        }
+    }
+
+    #[test]
+    fn test_exit_code_unique_values() {
+        let codes = [
+            ExitCode::Success,
+            ExitCode::GeneralError,
+            ExitCode::InvalidArgs,
+            ExitCode::InputNotFound,
+            ExitCode::OutputError,
+            ExitCode::ProcessingError,
+            ExitCode::GpuError,
+            ExitCode::ExternalToolError,
+        ];
+
+        // All codes should have unique values
+        let values: Vec<i32> = codes.iter().map(|c| c.code()).collect();
+        for (i, v1) in values.iter().enumerate() {
+            for (j, v2) in values.iter().enumerate() {
+                if i != j {
+                    assert_ne!(v1, v2, "Duplicate code value found");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_exit_code_follows_unix_convention() {
+        // 0 = success is standard Unix convention
+        assert_eq!(ExitCode::Success.code(), 0);
+        // All error codes should be non-zero
+        assert_ne!(ExitCode::GeneralError.code(), 0);
+        assert_ne!(ExitCode::InvalidArgs.code(), 0);
+        assert_ne!(ExitCode::InputNotFound.code(), 0);
+    }
+
+    // ============ Path Handling Tests ============
+
+    #[test]
+    fn test_absolute_input_path() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "/absolute/path/to/file.pdf"])
+            .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.input.is_absolute());
+        }
+    }
+
+    #[test]
+    fn test_relative_input_path() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "relative/path/file.pdf"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.input.is_relative());
+        }
+    }
+
+    #[test]
+    fn test_path_with_spaces() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "/path/with spaces/document.pdf"])
+                .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.input.to_string_lossy().contains("with spaces"));
+        }
+    }
+
+    #[test]
+    fn test_path_with_unicode() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "/パス/日本語/ドキュメント.pdf"])
+                .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.input.to_string_lossy().contains("日本語"));
+        }
+    }
+
+    #[test]
+    fn test_directory_as_output() {
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "/custom/output/directory",
+        ])
+        .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.output.to_string_lossy().contains("directory"));
+        }
+    }
+
+    // ============ Flag Combinations Tests ============
+
+    #[test]
+    fn test_upscale_flag_explicit_true() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--upscale", "true"])
+                .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.effective_upscale());
+        }
+    }
+
+    #[test]
+    fn test_upscale_flag_explicit_false() {
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--upscale",
+            "false",
+        ])
+        .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(!args.effective_upscale());
+        }
+    }
+
+    #[test]
+    fn test_deskew_flag_explicit_true() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--deskew", "true"])
+                .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.effective_deskew());
+        }
+    }
+
+    #[test]
+    fn test_deskew_flag_explicit_false() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--deskew", "false"])
+                .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(!args.effective_deskew());
+        }
+    }
+
+    #[test]
+    fn test_gpu_flag_explicit_true() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--gpu", "true"])
+            .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.effective_gpu());
+        }
+    }
+
+    #[test]
+    fn test_gpu_flag_explicit_false() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--gpu", "false"])
+            .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(!args.effective_gpu());
+        }
+    }
+
+    #[test]
+    fn test_no_flags_override_explicit() {
+        // --upscale true --no-upscale should result in false (no-* takes precedence)
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--upscale",
+            "true",
+            "--no-upscale",
+        ])
+        .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(!args.effective_upscale());
+        }
+    }
+
+    // ============ DPI Value Tests ============
+
+    #[test]
+    fn test_dpi_common_values() {
+        let dpi_values = [72, 150, 300, 600, 1200];
+        for dpi in dpi_values {
+            let cli = Cli::try_parse_from([
+                "superbook-pdf",
+                "convert",
+                "input.pdf",
+                "--dpi",
+                &dpi.to_string(),
+            ])
+            .unwrap();
+            if let Commands::Convert(args) = cli.command {
+                assert_eq!(args.dpi, dpi);
+            }
+        }
+    }
+
+    #[test]
+    fn test_dpi_minimum() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--dpi", "1"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.dpi, 1);
+        }
+    }
+
+    #[test]
+    fn test_dpi_very_high() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--dpi", "2400"])
+            .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.dpi, 2400);
+        }
+    }
+
+    // ============ Progress Bar Additional Tests ============
+
+    #[test]
+    fn test_progress_bar_zero_total() {
+        let pb = create_progress_bar(0);
+        assert_eq!(pb.length(), Some(0));
+    }
+
+    #[test]
+    fn test_progress_bar_large_total() {
+        let pb = create_progress_bar(1_000_000);
+        assert_eq!(pb.length(), Some(1_000_000));
+        pb.set_position(500_000);
+        assert_eq!(pb.position(), 500_000);
+    }
+
+    #[test]
+    fn test_spinner_empty_message() {
+        let spinner = create_spinner("");
+        assert_eq!(spinner.message(), "");
+    }
+
+    #[test]
+    fn test_spinner_unicode_message() {
+        let spinner = create_spinner("処理中... 🔄");
+        assert!(spinner.message().contains("処理中"));
+    }
+
+    #[test]
+    fn test_page_progress_bar_single_page() {
+        let pb = create_page_progress_bar(1);
+        assert_eq!(pb.length(), Some(1));
+        pb.set_position(0);
+        pb.set_message("page_0.png");
+        pb.finish_with_message("Done");
+    }
+
+    #[test]
+    fn test_page_progress_bar_many_pages() {
+        let pb = create_page_progress_bar(1000);
+        assert_eq!(pb.length(), Some(1000));
+        pb.set_position(999);
+        assert_eq!(pb.position(), 999);
+    }
+
+    // ============ Short Flag Tests ============
+
+    #[test]
+    fn test_short_flag_o_ocr() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "-o"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.ocr);
+        }
+    }
+
+    #[test]
+    fn test_short_flag_m_margin() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "-m", "2.0"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.margin_trim, 2.0);
+        }
+    }
+
+    #[test]
+    fn test_short_flag_t_threads() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "-t", "8"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.thread_count(), 8);
+        }
+    }
+
+    #[test]
+    fn test_short_flag_g_gpu() {
+        let cli =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "-g", "false"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(!args.effective_gpu());
+        }
+    }
+
+    #[test]
+    fn test_short_flag_q_quiet() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "-q"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.quiet);
+        }
+    }
+
+    // ============ Input Path Extension Tests ============
+
+    #[test]
+    fn test_various_input_extensions() {
+        let extensions = ["pdf", "PDF", "Pdf"];
+        for ext in extensions {
+            let path = format!("document.{}", ext);
+            let cli = Cli::try_parse_from(["superbook-pdf", "convert", &path]).unwrap();
+            if let Commands::Convert(args) = cli.command {
+                assert!(args.input.to_string_lossy().ends_with(ext));
+            }
+        }
+    }
+
+    #[test]
+    fn test_input_without_extension() {
+        let cli = Cli::try_parse_from(["superbook-pdf", "convert", "document"]).unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.input, PathBuf::from("document"));
+        }
+    }
+
+    // ============ Effective Methods Tests ============
+
+    #[test]
+    fn test_effective_methods_all_enabled() {
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--upscale",
+            "true",
+            "--deskew",
+            "true",
+            "--gpu",
+            "true",
+        ])
+        .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(args.effective_upscale());
+            assert!(args.effective_deskew());
+            assert!(args.effective_gpu());
+        }
+    }
+
+    #[test]
+    fn test_effective_methods_all_disabled() {
+        let cli = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--no-upscale",
+            "--no-deskew",
+            "--no-gpu",
+        ])
+        .unwrap();
+        if let Commands::Convert(args) = cli.command {
+            assert!(!args.effective_upscale());
+            assert!(!args.effective_deskew());
+            assert!(!args.effective_gpu());
+        }
+    }
+
+    // ============ Command Metadata Tests ============
+
+    #[test]
+    fn test_command_name() {
+        let cmd = Cli::command();
+        assert_eq!(cmd.get_name(), "superbook-pdf");
+    }
+
+    #[test]
+    fn test_command_about() {
+        let cmd = Cli::command();
+        let about = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
+        assert!(!about.is_empty());
+    }
+
+    #[test]
+    fn test_subcommands_present() {
+        let cmd = Cli::command();
+        let subcommands: Vec<_> = cmd.get_subcommands().collect();
+        assert!(subcommands.len() >= 2); // convert and info
+    }
+
+    // ============ Error Message Tests ============
+
+    #[test]
+    fn test_invalid_dpi_format_error() {
+        let result = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--dpi",
+            "not_a_number",
+        ]);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        // Error should mention invalid value
+        assert!(
+            err_msg.contains("invalid") || err_msg.contains("error") || err_msg.contains("parse")
+        );
+    }
+
+    #[test]
+    fn test_invalid_thread_format_error() {
+        let result =
+            Cli::try_parse_from(["superbook-pdf", "convert", "input.pdf", "--threads", "abc"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_margin_format_error() {
+        let result = Cli::try_parse_from([
+            "superbook-pdf",
+            "convert",
+            "input.pdf",
+            "--margin-trim",
+            "invalid",
+        ]);
+        assert!(result.is_err());
+    }
 }

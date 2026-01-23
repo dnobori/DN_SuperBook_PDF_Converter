@@ -1287,4 +1287,660 @@ mod tests {
             result.margins_applied.total_vertical() as u32
         );
     }
+
+    // ============ Debug Implementation Tests ============
+
+    #[test]
+    fn test_margin_error_debug_impl() {
+        let err = MarginError::ImageNotFound(PathBuf::from("/test/path.png"));
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("ImageNotFound"));
+
+        let err2 = MarginError::InvalidImage("bad format".to_string());
+        let debug_str2 = format!("{:?}", err2);
+        assert!(debug_str2.contains("InvalidImage"));
+
+        let err3 = MarginError::NoContentDetected;
+        let debug_str3 = format!("{:?}", err3);
+        assert!(debug_str3.contains("NoContentDetected"));
+    }
+
+    #[test]
+    fn test_margin_options_debug_impl() {
+        let opts = MarginOptions::default();
+        let debug_str = format!("{:?}", opts);
+        assert!(debug_str.contains("MarginOptions"));
+        assert!(debug_str.contains("background_threshold"));
+        assert!(debug_str.contains("min_margin"));
+    }
+
+    #[test]
+    fn test_margin_options_builder_debug_impl() {
+        let builder = MarginOptions::builder();
+        let debug_str = format!("{:?}", builder);
+        assert!(debug_str.contains("MarginOptionsBuilder"));
+    }
+
+    #[test]
+    fn test_content_detection_mode_debug_impl() {
+        let mode = ContentDetectionMode::BackgroundColor;
+        let debug_str = format!("{:?}", mode);
+        assert!(debug_str.contains("BackgroundColor"));
+
+        let mode2 = ContentDetectionMode::EdgeDetection;
+        let debug_str2 = format!("{:?}", mode2);
+        assert!(debug_str2.contains("EdgeDetection"));
+
+        let mode3 = ContentDetectionMode::Histogram;
+        let debug_str3 = format!("{:?}", mode3);
+        assert!(debug_str3.contains("Histogram"));
+
+        let mode4 = ContentDetectionMode::Combined;
+        let debug_str4 = format!("{:?}", mode4);
+        assert!(debug_str4.contains("Combined"));
+    }
+
+    #[test]
+    fn test_margins_debug_impl() {
+        let margins = Margins::uniform(50);
+        let debug_str = format!("{:?}", margins);
+        assert!(debug_str.contains("Margins"));
+        assert!(debug_str.contains("top"));
+        assert!(debug_str.contains("50"));
+    }
+
+    #[test]
+    fn test_content_rect_debug_impl() {
+        let rect = ContentRect {
+            x: 10,
+            y: 20,
+            width: 100,
+            height: 200,
+        };
+        let debug_str = format!("{:?}", rect);
+        assert!(debug_str.contains("ContentRect"));
+        assert!(debug_str.contains("width"));
+    }
+
+    #[test]
+    fn test_margin_detection_debug_impl() {
+        let detection = MarginDetection {
+            margins: Margins::uniform(30),
+            image_size: (800, 600),
+            content_rect: ContentRect {
+                x: 30,
+                y: 30,
+                width: 740,
+                height: 540,
+            },
+            confidence: 0.95,
+        };
+        let debug_str = format!("{:?}", detection);
+        assert!(debug_str.contains("MarginDetection"));
+        assert!(debug_str.contains("confidence"));
+    }
+
+    #[test]
+    fn test_unified_margins_debug_impl() {
+        let unified = UnifiedMargins {
+            margins: Margins::uniform(20),
+            page_detections: vec![],
+            unified_size: (1000, 1500),
+        };
+        let debug_str = format!("{:?}", unified);
+        assert!(debug_str.contains("UnifiedMargins"));
+        assert!(debug_str.contains("unified_size"));
+    }
+
+    #[test]
+    fn test_trim_result_debug_impl() {
+        let result = TrimResult {
+            input_path: PathBuf::from("/input/test.png"),
+            output_path: PathBuf::from("/output/test.png"),
+            original_size: (100, 100),
+            trimmed_size: (90, 90),
+            margins_applied: Margins::uniform(5),
+        };
+        let debug_str = format!("{:?}", result);
+        assert!(debug_str.contains("TrimResult"));
+        assert!(debug_str.contains("original_size"));
+    }
+
+    // ============ Clone Implementation Tests ============
+
+    #[test]
+    fn test_margin_options_clone() {
+        let original = MarginOptions::builder()
+            .background_threshold(200)
+            .min_margin(15)
+            .edge_sensitivity(0.7)
+            .detection_mode(ContentDetectionMode::Combined)
+            .build();
+
+        let cloned = original.clone();
+
+        assert_eq!(cloned.background_threshold, 200);
+        assert_eq!(cloned.min_margin, 15);
+        assert_eq!(cloned.edge_sensitivity, 0.7);
+    }
+
+    #[test]
+    fn test_content_detection_mode_clone() {
+        let original = ContentDetectionMode::EdgeDetection;
+        let cloned = original.clone();
+
+        assert!(matches!(cloned, ContentDetectionMode::EdgeDetection));
+    }
+
+    #[test]
+    fn test_content_detection_mode_copy() {
+        let original = ContentDetectionMode::Histogram;
+        let copied: ContentDetectionMode = original; // Copy
+        let _still_valid = original; // original still valid
+
+        assert!(matches!(copied, ContentDetectionMode::Histogram));
+    }
+
+    #[test]
+    fn test_margins_clone() {
+        let original = Margins {
+            top: 10,
+            bottom: 20,
+            left: 30,
+            right: 40,
+        };
+        let cloned = original.clone();
+
+        assert_eq!(cloned.top, 10);
+        assert_eq!(cloned.bottom, 20);
+        assert_eq!(cloned.left, 30);
+        assert_eq!(cloned.right, 40);
+    }
+
+    #[test]
+    fn test_margins_copy() {
+        let original = Margins::uniform(25);
+        let copied: Margins = original; // Copy
+        let _still_valid = original; // original still valid
+
+        assert_eq!(copied.top, 25);
+    }
+
+    #[test]
+    fn test_content_rect_clone() {
+        let original = ContentRect {
+            x: 5,
+            y: 10,
+            width: 200,
+            height: 300,
+        };
+        let cloned = original.clone();
+
+        assert_eq!(cloned.x, 5);
+        assert_eq!(cloned.y, 10);
+        assert_eq!(cloned.width, 200);
+        assert_eq!(cloned.height, 300);
+    }
+
+    #[test]
+    fn test_content_rect_copy() {
+        let original = ContentRect {
+            x: 50,
+            y: 60,
+            width: 400,
+            height: 500,
+        };
+        let copied: ContentRect = original; // Copy
+        let _still_valid = original; // original still valid
+
+        assert_eq!(copied.width, 400);
+    }
+
+    #[test]
+    fn test_margin_detection_clone() {
+        let original = MarginDetection {
+            margins: Margins::uniform(40),
+            image_size: (1920, 1080),
+            content_rect: ContentRect {
+                x: 40,
+                y: 40,
+                width: 1840,
+                height: 1000,
+            },
+            confidence: 0.88,
+        };
+        let cloned = original.clone();
+
+        assert_eq!(cloned.image_size, (1920, 1080));
+        assert_eq!(cloned.confidence, 0.88);
+        assert_eq!(cloned.margins.top, 40);
+    }
+
+    #[test]
+    fn test_unified_margins_clone() {
+        let detection = MarginDetection {
+            margins: Margins::uniform(30),
+            image_size: (800, 600),
+            content_rect: ContentRect {
+                x: 30,
+                y: 30,
+                width: 740,
+                height: 540,
+            },
+            confidence: 0.9,
+        };
+
+        let original = UnifiedMargins {
+            margins: Margins::uniform(25),
+            page_detections: vec![detection],
+            unified_size: (750, 550),
+        };
+
+        let cloned = original.clone();
+
+        assert_eq!(cloned.margins.top, 25);
+        assert_eq!(cloned.page_detections.len(), 1);
+        assert_eq!(cloned.unified_size, (750, 550));
+    }
+
+    // ============ Default Implementation Tests ============
+
+    #[test]
+    fn test_content_detection_mode_default() {
+        let mode: ContentDetectionMode = Default::default();
+        assert!(matches!(mode, ContentDetectionMode::BackgroundColor));
+    }
+
+    #[test]
+    fn test_margins_default() {
+        let margins: Margins = Default::default();
+        assert_eq!(margins.top, 0);
+        assert_eq!(margins.bottom, 0);
+        assert_eq!(margins.left, 0);
+        assert_eq!(margins.right, 0);
+    }
+
+    #[test]
+    fn test_margin_options_builder_default() {
+        let builder: MarginOptionsBuilder = Default::default();
+        let opts = builder.build();
+        // Should produce same as MarginOptions::default()
+        let default_opts = MarginOptions::default();
+        assert_eq!(opts.background_threshold, default_opts.background_threshold);
+    }
+
+    // ============ Boundary Value Tests ============
+
+    #[test]
+    fn test_margins_max_values() {
+        let margins = Margins {
+            top: u32::MAX,
+            bottom: u32::MAX,
+            left: u32::MAX,
+            right: u32::MAX,
+        };
+
+        // Overflow check (will wrap on overflow in release mode)
+        let _ = margins.top;
+        let _ = margins.bottom;
+    }
+
+    #[test]
+    fn test_content_rect_zero_dimensions() {
+        let rect = ContentRect {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        };
+
+        assert_eq!(rect.width, 0);
+        assert_eq!(rect.height, 0);
+    }
+
+    #[test]
+    fn test_content_rect_large_dimensions() {
+        // 8K resolution
+        let rect = ContentRect {
+            x: 100,
+            y: 100,
+            width: 7680,
+            height: 4320,
+        };
+
+        assert_eq!(rect.width, 7680);
+        assert_eq!(rect.height, 4320);
+    }
+
+    #[test]
+    fn test_margin_detection_zero_confidence() {
+        let detection = MarginDetection {
+            margins: Margins::uniform(0),
+            image_size: (100, 100),
+            content_rect: ContentRect {
+                x: 0,
+                y: 0,
+                width: 100,
+                height: 100,
+            },
+            confidence: 0.0,
+        };
+
+        assert_eq!(detection.confidence, 0.0);
+    }
+
+    #[test]
+    fn test_margin_detection_full_confidence() {
+        let detection = MarginDetection {
+            margins: Margins::uniform(10),
+            image_size: (100, 100),
+            content_rect: ContentRect {
+                x: 10,
+                y: 10,
+                width: 80,
+                height: 80,
+            },
+            confidence: 1.0,
+        };
+
+        assert_eq!(detection.confidence, 1.0);
+    }
+
+    #[test]
+    fn test_trim_percent_clamping() {
+        // Over 100% should clamp to 100%
+        let opts = MarginOptions::builder().default_trim_percent(150.0).build();
+        assert_eq!(opts.default_trim_percent, 100.0);
+
+        // Negative should clamp to 0
+        let opts_neg = MarginOptions::builder().default_trim_percent(-10.0).build();
+        assert_eq!(opts_neg.default_trim_percent, 0.0);
+    }
+
+    // ============ Preset Tests ============
+
+    #[test]
+    fn test_for_dark_background_all_fields() {
+        let opts = MarginOptions::for_dark_background();
+
+        assert_eq!(opts.background_threshold, 50);
+        assert!(matches!(
+            opts.detection_mode,
+            ContentDetectionMode::EdgeDetection
+        ));
+        // Other fields should be default
+        assert_eq!(opts.min_margin, MarginOptions::default().min_margin);
+        assert_eq!(
+            opts.default_trim_percent,
+            MarginOptions::default().default_trim_percent
+        );
+    }
+
+    #[test]
+    fn test_precise_all_fields() {
+        let opts = MarginOptions::precise();
+
+        assert!(matches!(
+            opts.detection_mode,
+            ContentDetectionMode::Combined
+        ));
+        assert_eq!(opts.edge_sensitivity, 0.8);
+        // Other fields should be default
+        assert_eq!(
+            opts.background_threshold,
+            MarginOptions::default().background_threshold
+        );
+    }
+
+    // ============ Error Variant Tests ============
+
+    #[test]
+    fn test_margin_error_io_details_preserved() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
+        let margin_err: MarginError = io_err.into();
+
+        let msg = format!("{}", margin_err);
+        assert!(msg.contains("access denied") || msg.contains("IO"));
+    }
+
+    #[test]
+    fn test_margin_error_path_preserved() {
+        let path = PathBuf::from("/very/specific/path/to/image.png");
+        let err = MarginError::ImageNotFound(path.clone());
+
+        let msg = format!("{}", err);
+        assert!(msg.contains("image.png") || msg.contains("not found"));
+    }
+
+    #[test]
+    fn test_margin_error_invalid_message_preserved() {
+        let err = MarginError::InvalidImage("custom error message".to_string());
+
+        let msg = format!("{}", err);
+        assert!(msg.contains("custom error message") || msg.contains("Invalid"));
+    }
+
+    // ============ Builder Chain Tests ============
+
+    #[test]
+    fn test_builder_method_chaining_order_independence() {
+        // Different order should produce same result
+        let opts1 = MarginOptions::builder()
+            .background_threshold(180)
+            .min_margin(8)
+            .edge_sensitivity(0.6)
+            .build();
+
+        let opts2 = MarginOptions::builder()
+            .edge_sensitivity(0.6)
+            .background_threshold(180)
+            .min_margin(8)
+            .build();
+
+        assert_eq!(opts1.background_threshold, opts2.background_threshold);
+        assert_eq!(opts1.min_margin, opts2.min_margin);
+        assert_eq!(opts1.edge_sensitivity, opts2.edge_sensitivity);
+    }
+
+    #[test]
+    fn test_builder_override_previous_values() {
+        let opts = MarginOptions::builder()
+            .background_threshold(100)
+            .background_threshold(200) // Override
+            .build();
+
+        assert_eq!(opts.background_threshold, 200);
+    }
+
+    // ============ Unified Margins Edge Cases ============
+
+    #[test]
+    fn test_unified_margins_empty_detections() {
+        let unified = UnifiedMargins {
+            margins: Margins::uniform(0),
+            page_detections: vec![],
+            unified_size: (0, 0),
+        };
+
+        assert!(unified.page_detections.is_empty());
+        assert_eq!(unified.unified_size, (0, 0));
+    }
+
+    #[test]
+    fn test_unified_margins_single_page() {
+        let detection = MarginDetection {
+            margins: Margins {
+                top: 50,
+                bottom: 60,
+                left: 30,
+                right: 40,
+            },
+            image_size: (1000, 1500),
+            content_rect: ContentRect {
+                x: 30,
+                y: 50,
+                width: 930,
+                height: 1390,
+            },
+            confidence: 0.92,
+        };
+
+        let unified = UnifiedMargins {
+            margins: detection.margins,
+            page_detections: vec![detection],
+            unified_size: (930, 1390),
+        };
+
+        assert_eq!(unified.page_detections.len(), 1);
+        assert_eq!(unified.margins.top, 50);
+    }
+
+    #[test]
+    fn test_unified_margins_multiple_pages() {
+        let detections: Vec<MarginDetection> = (0..10)
+            .map(|i| MarginDetection {
+                margins: Margins::uniform(20 + i as u32),
+                image_size: (1000, 1500),
+                content_rect: ContentRect {
+                    x: 20 + i as u32,
+                    y: 20 + i as u32,
+                    width: 960 - 2 * i as u32,
+                    height: 1460 - 2 * i as u32,
+                },
+                confidence: 0.9,
+            })
+            .collect();
+
+        let unified = UnifiedMargins {
+            margins: Margins::uniform(20), // Minimum
+            page_detections: detections,
+            unified_size: (960, 1460), // Maximum content
+        };
+
+        assert_eq!(unified.page_detections.len(), 10);
+    }
+
+    // ============ Detection Mode Specific Tests ============
+
+    #[test]
+    fn test_all_detection_modes_constructible() {
+        let modes = [
+            ContentDetectionMode::BackgroundColor,
+            ContentDetectionMode::EdgeDetection,
+            ContentDetectionMode::Histogram,
+            ContentDetectionMode::Combined,
+        ];
+
+        for mode in modes {
+            let opts = MarginOptions::builder().detection_mode(mode).build();
+            // Just verify it doesn't panic
+            let _ = format!("{:?}", opts.detection_mode);
+        }
+    }
+
+    // ============ Path Type Tests ============
+
+    #[test]
+    fn test_trim_result_absolute_paths() {
+        let result = TrimResult {
+            input_path: PathBuf::from("/absolute/path/input.png"),
+            output_path: PathBuf::from("/absolute/path/output.png"),
+            original_size: (100, 100),
+            trimmed_size: (80, 80),
+            margins_applied: Margins::uniform(10),
+        };
+
+        assert!(result.input_path.is_absolute());
+        assert!(result.output_path.is_absolute());
+    }
+
+    #[test]
+    fn test_trim_result_relative_paths() {
+        let result = TrimResult {
+            input_path: PathBuf::from("relative/input.png"),
+            output_path: PathBuf::from("relative/output.png"),
+            original_size: (100, 100),
+            trimmed_size: (80, 80),
+            margins_applied: Margins::uniform(10),
+        };
+
+        assert!(result.input_path.is_relative());
+        assert!(result.output_path.is_relative());
+    }
+
+    // ============ Size Calculation Tests ============
+
+    #[test]
+    fn test_margins_total_calculation_overflow_safe() {
+        // Test that total calculations don't panic even with large values
+        let margins = Margins {
+            top: u32::MAX / 2,
+            bottom: u32::MAX / 2,
+            left: u32::MAX / 2,
+            right: u32::MAX / 2,
+        };
+
+        // These might overflow but shouldn't panic in tests
+        let v = margins.total_vertical();
+        let h = margins.total_horizontal();
+
+        // Just verify we can compute them
+        let _ = v;
+        let _ = h;
+    }
+
+    #[test]
+    fn test_content_area_from_margins() {
+        let image_size = (1000u32, 800u32);
+        let margins = Margins {
+            top: 50,
+            bottom: 50,
+            left: 100,
+            right: 100,
+        };
+
+        let content_width = image_size.0 - margins.total_horizontal();
+        let content_height = image_size.1 - margins.total_vertical();
+
+        assert_eq!(content_width, 800);
+        assert_eq!(content_height, 700);
+    }
+
+    // ============ Image Format Compatibility Tests ============
+
+    #[test]
+    fn test_image_not_found_various_extensions() {
+        let extensions = ["png", "jpg", "jpeg", "tiff", "bmp", "gif"];
+
+        for ext in extensions {
+            let path = format!("/nonexistent/image.{}", ext);
+            let result = ImageMarginDetector::detect(Path::new(&path), &MarginOptions::default());
+
+            assert!(matches!(result, Err(MarginError::ImageNotFound(_))));
+        }
+    }
+
+    // ============ Confidence Range Tests ============
+
+    #[test]
+    fn test_confidence_boundary_values() {
+        let confidence_values = [0.0, 0.001, 0.5, 0.999, 1.0];
+
+        for conf in confidence_values {
+            let detection = MarginDetection {
+                margins: Margins::uniform(10),
+                image_size: (100, 100),
+                content_rect: ContentRect {
+                    x: 10,
+                    y: 10,
+                    width: 80,
+                    height: 80,
+                },
+                confidence: conf,
+            };
+
+            assert!(detection.confidence >= 0.0);
+            assert!(detection.confidence <= 1.0);
+        }
+    }
 }

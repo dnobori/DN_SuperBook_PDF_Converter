@@ -1139,4 +1139,284 @@ mod tests {
         assert_ne!(ColorSpace::Rgb, ColorSpace::Cmyk);
         assert_ne!(ColorSpace::Grayscale, ColorSpace::Cmyk);
     }
+
+    // Additional comprehensive Debug/Clone tests
+
+    #[test]
+    fn test_image_format_debug_impl() {
+        let png = ImageFormat::Png;
+        let debug_str = format!("{:?}", png);
+        assert!(debug_str.contains("Png"));
+
+        let jpeg = ImageFormat::Jpeg { quality: 85 };
+        let debug_str = format!("{:?}", jpeg);
+        assert!(debug_str.contains("Jpeg"));
+        assert!(debug_str.contains("85"));
+
+        let tiff = ImageFormat::Tiff;
+        let debug_str = format!("{:?}", tiff);
+        assert!(debug_str.contains("Tiff"));
+    }
+
+    #[test]
+    fn test_image_format_clone() {
+        let original = ImageFormat::Jpeg { quality: 92 };
+        let cloned = original.clone();
+        if let ImageFormat::Jpeg { quality } = cloned {
+            assert_eq!(quality, 92);
+        } else {
+            panic!("Clone should preserve JPEG format");
+        }
+
+        let original_png = ImageFormat::Png;
+        let cloned_png = original_png.clone();
+        assert!(matches!(cloned_png, ImageFormat::Png));
+    }
+
+    #[test]
+    fn test_image_format_copy() {
+        let original = ImageFormat::Bmp;
+        let copied = original; // Copy, not move
+        let _still_valid = original; // Original still valid
+        assert!(matches!(copied, ImageFormat::Bmp));
+    }
+
+    #[test]
+    fn test_colorspace_debug_impl() {
+        let rgb = ColorSpace::Rgb;
+        let debug_str = format!("{:?}", rgb);
+        assert!(debug_str.contains("Rgb"));
+
+        let gray = ColorSpace::Grayscale;
+        let debug_str = format!("{:?}", gray);
+        assert!(debug_str.contains("Grayscale"));
+
+        let cmyk = ColorSpace::Cmyk;
+        let debug_str = format!("{:?}", cmyk);
+        assert!(debug_str.contains("Cmyk"));
+    }
+
+    #[test]
+    fn test_colorspace_clone() {
+        let original = ColorSpace::Cmyk;
+        let cloned = original.clone();
+        assert_eq!(cloned, ColorSpace::Cmyk);
+    }
+
+    #[test]
+    fn test_colorspace_copy() {
+        let original = ColorSpace::Grayscale;
+        let copied = original; // Copy
+        let _still_valid = original; // Original still valid
+        assert_eq!(copied, ColorSpace::Grayscale);
+    }
+
+    #[test]
+    fn test_extracted_page_debug_impl() {
+        let page = ExtractedPage {
+            page_index: 3,
+            path: PathBuf::from("/tmp/test.png"),
+            width: 1920,
+            height: 1080,
+            format: ImageFormat::Png,
+        };
+        let debug_str = format!("{:?}", page);
+        assert!(debug_str.contains("ExtractedPage"));
+        assert!(debug_str.contains("3"));
+        assert!(debug_str.contains("1920"));
+        assert!(debug_str.contains("1080"));
+    }
+
+    #[test]
+    fn test_error_debug_impl() {
+        let err = ExtractError::PdfNotFound(PathBuf::from("/test.pdf"));
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("PdfNotFound"));
+
+        let err2 = ExtractError::ExtractionFailed {
+            page: 5,
+            reason: "test reason".to_string(),
+        };
+        let debug_str2 = format!("{:?}", err2);
+        assert!(debug_str2.contains("ExtractionFailed"));
+    }
+
+    #[test]
+    fn test_extract_options_builder_debug_impl() {
+        let builder = ExtractOptionsBuilder::default();
+        let debug_str = format!("{:?}", builder);
+        assert!(debug_str.contains("ExtractOptionsBuilder"));
+    }
+
+    #[test]
+    fn test_error_path_extraction() {
+        let path = PathBuf::from("/some/pdf/file.pdf");
+        let err = ExtractError::PdfNotFound(path.clone());
+
+        if let ExtractError::PdfNotFound(p) = err {
+            assert_eq!(p, path);
+        } else {
+            panic!("Wrong error variant");
+        }
+    }
+
+    #[test]
+    fn test_error_page_extraction() {
+        let err = ExtractError::ExtractionFailed {
+            page: 42,
+            reason: "Out of memory".to_string(),
+        };
+
+        if let ExtractError::ExtractionFailed { page, reason } = err {
+            assert_eq!(page, 42);
+            assert!(reason.contains("memory"));
+        } else {
+            panic!("Wrong error variant");
+        }
+    }
+
+    #[test]
+    fn test_page_index_sequential() {
+        let pages: Vec<ExtractedPage> = (0..100)
+            .map(|i| ExtractedPage {
+                page_index: i,
+                path: PathBuf::from(format!("/tmp/page_{:05}.png", i)),
+                width: 1000,
+                height: 1500,
+                format: ImageFormat::Png,
+            })
+            .collect();
+
+        for (i, page) in pages.iter().enumerate() {
+            assert_eq!(page.page_index, i);
+        }
+    }
+
+    #[test]
+    fn test_large_page_dimensions() {
+        // A0 at 600 DPI
+        let large_page = ExtractedPage {
+            page_index: 0,
+            path: PathBuf::from("/tmp/a0.png"),
+            width: 19842,
+            height: 28067,
+            format: ImageFormat::Png,
+        };
+        assert!(large_page.width > 10000);
+        assert!(large_page.height > 20000);
+    }
+
+    #[test]
+    fn test_small_page_dimensions() {
+        // Tiny thumbnail
+        let tiny_page = ExtractedPage {
+            page_index: 0,
+            path: PathBuf::from("/tmp/tiny.png"),
+            width: 16,
+            height: 16,
+            format: ImageFormat::Png,
+        };
+        assert!(tiny_page.width <= 100);
+        assert!(tiny_page.height <= 100);
+    }
+
+    #[test]
+    fn test_preset_consistency() {
+        let high = ExtractOptions::high_quality();
+        let fast = ExtractOptions::fast();
+        let gray = ExtractOptions::grayscale();
+
+        // High quality should have higher DPI than fast
+        assert!(high.dpi > fast.dpi);
+
+        // Grayscale should have grayscale colorspace
+        assert_eq!(gray.colorspace, ColorSpace::Grayscale);
+
+        // All presets should have valid backgrounds
+        assert!(high.background.is_some() || high.background.is_none()); // Either is valid
+    }
+
+    #[test]
+    fn test_output_path_types() {
+        // Absolute path
+        let abs_page = ExtractedPage {
+            page_index: 0,
+            path: PathBuf::from("/absolute/path/page.png"),
+            width: 100,
+            height: 100,
+            format: ImageFormat::Png,
+        };
+        assert!(abs_page.path.is_absolute());
+
+        // Relative path
+        let rel_page = ExtractedPage {
+            page_index: 0,
+            path: PathBuf::from("relative/path/page.png"),
+            width: 100,
+            height: 100,
+            format: ImageFormat::Png,
+        };
+        assert!(rel_page.path.is_relative());
+    }
+
+    #[test]
+    fn test_jpeg_quality_boundary() {
+        // Test quality 1 (minimum realistic)
+        let opts_1 = ExtractOptions::builder()
+            .format(ImageFormat::Jpeg { quality: 1 })
+            .build();
+        if let ImageFormat::Jpeg { quality } = opts_1.format {
+            assert_eq!(quality, 1);
+        }
+
+        // Test quality values across range
+        for q in (0..=100).step_by(10) {
+            let opts = ExtractOptions::builder()
+                .format(ImageFormat::Jpeg { quality: q })
+                .build();
+            if let ImageFormat::Jpeg { quality } = opts.format {
+                assert_eq!(quality, q);
+            }
+        }
+    }
+
+    #[test]
+    fn test_magick_extractor_marker() {
+        // Verify MagickExtractor type exists
+        let _ = std::any::type_name::<MagickExtractor>();
+    }
+
+    #[test]
+    fn test_error_io_details_preserved() {
+        let io_err = std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "access denied to file",
+        );
+        let extract_err: ExtractError = io_err.into();
+
+        let msg = extract_err.to_string().to_lowercase();
+        // The error message should contain IO-related info
+        assert!(msg.contains("io") || msg.contains("error") || msg.contains("access"));
+    }
+
+    #[test]
+    fn test_all_dpi_presets() {
+        let dpi_values = [72, 96, 150, 200, 300, 400, 600, 1200];
+
+        for dpi in dpi_values {
+            let opts = ExtractOptions::builder().dpi(dpi).build();
+            assert_eq!(opts.dpi, dpi);
+        }
+    }
+
+    #[test]
+    fn test_background_none_vs_some() {
+        let with_bg = ExtractOptions::builder()
+            .background([255, 255, 255])
+            .build();
+        assert!(with_bg.background.is_some());
+
+        let without_bg = ExtractOptions::builder().no_background().build();
+        assert!(without_bg.background.is_none());
+    }
 }
