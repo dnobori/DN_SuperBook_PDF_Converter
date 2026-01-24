@@ -149,8 +149,9 @@ pub use image_extract::{
     LopdfExtractor, MagickExtractor,
 };
 pub use margin::{
-    ContentDetectionMode, ContentRect, ImageMarginDetector, MarginDetection, MarginError,
-    MarginOptions, MarginOptionsBuilder, Margins, TrimResult, UnifiedMargins,
+    ContentDetectionMode, ContentRect, GroupCropAnalyzer, GroupCropRegion, ImageMarginDetector,
+    MarginDetection, MarginError, MarginOptions, MarginOptionsBuilder, Margins, PageBoundingBox,
+    TrimResult, UnifiedCropRegions, UnifiedMargins,
 };
 pub use page_number::{
     DetectedPageNumber, OffsetCorrection, PageNumberAnalysis, PageNumberError, PageNumberOptions,
