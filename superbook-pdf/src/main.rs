@@ -537,8 +537,14 @@ fn process_single_pdf(
         let bounding_boxes = GroupCropAnalyzer::detect_all_bounding_boxes(&images_after_color, 240);
 
         if !bounding_boxes.is_empty() {
-            // Calculate unified crop regions using Tukey fence
-            let unified = GroupCropAnalyzer::unify_odd_even_regions(&bounding_boxes);
+            // Calculate unified crop regions using Tukey fence with Y unification and margin expansion
+            // Use internal resolution bounds (4960x7016) and add 5% margin for text breathing room
+            let unified = GroupCropAnalyzer::unify_and_expand_regions(
+                &bounding_boxes,
+                5,    // 5% margin expansion
+                4960, // internal width limit
+                7016, // internal height limit
+            );
 
             if verbose && args.verbose > 1 {
                 println!(

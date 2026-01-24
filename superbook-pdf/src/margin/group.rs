@@ -208,6 +208,23 @@ impl GroupCropAnalyzer {
 
     /// Unify crop regions for odd and even page groups
     pub fn unify_odd_even_regions(bounding_boxes: &[PageBoundingBox]) -> UnifiedCropRegions {
+        Self::unify_and_expand_regions(bounding_boxes, 0, 0, 0)
+    }
+
+    /// Unify crop regions with Y coordinate unification, margin expansion, and size limits
+    ///
+    /// This function implements the full C# algorithm:
+    /// 1. Calculate separate crop regions for odd/even pages
+    /// 2. Unify Y coordinates (use min top, max bottom)
+    /// 3. Expand width/height by margin_percent
+    /// 4. Center the expansion
+    /// 5. Clamp to image bounds
+    pub fn unify_and_expand_regions(
+        bounding_boxes: &[PageBoundingBox],
+        margin_percent: u32,
+        max_width: u32,
+        max_height: u32,
+    ) -> UnifiedCropRegions {
         // Split into odd and even groups
         let odd_boxes: Vec<PageBoundingBox> = bounding_boxes
             .iter()
@@ -221,12 +238,91 @@ impl GroupCropAnalyzer {
             .collect();
 
         // Calculate crop region for each group
-        let odd_region = Self::decide_group_crop_region(&odd_boxes);
-        let even_region = Self::decide_group_crop_region(&even_boxes);
+        let mut odd_region = Self::decide_group_crop_region(&odd_boxes);
+        let mut even_region = Self::decide_group_crop_region(&even_boxes);
+
+        // Unify Y coordinates (min top, max bottom) for consistent vertical positioning
+        if odd_region.is_valid() && even_region.is_valid() {
+            let unified_top = odd_region.top.min(even_region.top);
+            let unified_bottom = odd_region.bottom().max(even_region.bottom());
+
+            odd_region.top = unified_top;
+            odd_region.height = unified_bottom.saturating_sub(unified_top);
+
+            even_region.top = unified_top;
+            even_region.height = unified_bottom.saturating_sub(unified_top);
+        }
+
+        // Expand both regions to match the larger one and add margin
+        if odd_region.is_valid() && even_region.is_valid() {
+            let target_width = odd_region.width.max(even_region.width);
+            let target_height = odd_region.height.max(even_region.height);
+
+            // Add margin percent
+            let expanded_width = target_width + target_width * margin_percent / 100;
+            let expanded_height = target_height + target_height * margin_percent / 100;
+
+            // Apply max bounds if specified
+            let final_width = if max_width > 0 {
+                expanded_width.min(max_width)
+            } else {
+                expanded_width
+            };
+            let final_height = if max_height > 0 {
+                expanded_height.min(max_height)
+            } else {
+                expanded_height
+            };
+
+            // Center the expansion for odd region
+            Self::expand_region_centered(&mut odd_region, final_width, final_height, max_width, max_height);
+
+            // Center the expansion for even region
+            Self::expand_region_centered(&mut even_region, final_width, final_height, max_width, max_height);
+        }
 
         UnifiedCropRegions {
             odd_region,
             even_region,
+        }
+    }
+
+    /// Expand a region to target size, centering the expansion
+    fn expand_region_centered(
+        region: &mut GroupCropRegion,
+        target_width: u32,
+        target_height: u32,
+        max_width: u32,
+        max_height: u32,
+    ) {
+        if region.width < target_width {
+            let dw = target_width - region.width;
+            let new_left = region.left.saturating_sub(dw / 2);
+
+            // Clamp to image bounds
+            let clamped_left = if max_width > 0 {
+                new_left.min(max_width.saturating_sub(target_width))
+            } else {
+                new_left
+            };
+
+            region.left = clamped_left;
+            region.width = target_width;
+        }
+
+        if region.height < target_height {
+            let dh = target_height - region.height;
+            let new_top = region.top.saturating_sub(dh / 2);
+
+            // Clamp to image bounds
+            let clamped_top = if max_height > 0 {
+                new_top.min(max_height.saturating_sub(target_height))
+            } else {
+                new_top
+            };
+
+            region.top = clamped_top;
+            region.height = target_height;
         }
     }
 
