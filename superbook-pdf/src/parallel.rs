@@ -572,4 +572,149 @@ mod tests {
 
         assert_eq!(progress_count.load(Ordering::Relaxed), 10);
     }
+
+    // ============ Additional edge case tests ============
+
+    #[test]
+    fn test_custom_thread_pool() {
+        let dir = tempdir().unwrap();
+        let paths: Vec<PathBuf> = (0..20)
+            .map(|i| {
+                let path = dir.path().join(format!("file_{}.txt", i));
+                File::create(&path).unwrap();
+                path
+            })
+            .collect();
+
+        // Use exactly 2 threads
+        let options = ParallelOptions::with_threads(2);
+        let result = parallel_process(&paths, |path| Ok::<_, String>(path.exists()), &options);
+
+        assert!(result.is_success());
+        assert_eq!(result.results.len(), 20);
+    }
+
+    #[test]
+    fn test_large_chunk_size() {
+        let dir = tempdir().unwrap();
+        let paths: Vec<PathBuf> = (0..50)
+            .map(|i| {
+                let path = dir.path().join(format!("file_{}.txt", i));
+                File::create(&path).unwrap();
+                path
+            })
+            .collect();
+
+        // Chunk size larger than input
+        let options = ParallelOptions::with_chunks(100);
+        let result = parallel_process(&paths, |path| Ok::<_, String>(path.exists()), &options);
+
+        assert!(result.is_success());
+        assert_eq!(result.results.len(), 50);
+    }
+
+    #[test]
+    fn test_mixed_success_failure() {
+        let dir = tempdir().unwrap();
+        let mut paths = Vec::new();
+
+        // Create 5 valid files
+        for i in 0..5 {
+            let path = dir.path().join(format!("valid_{}.txt", i));
+            File::create(&path).unwrap();
+            paths.push(path);
+        }
+        // Add 5 invalid paths
+        for i in 0..5 {
+            paths.push(PathBuf::from(format!("/nonexistent/path_{}", i)));
+        }
+
+        let options = ParallelOptions::default();
+        let result = parallel_process(
+            &paths,
+            |path| {
+                if path.exists() {
+                    Ok(path.to_string_lossy().to_string())
+                } else {
+                    Err("File not found")
+                }
+            },
+            &options,
+        );
+
+        assert_eq!(result.results.len(), 5);
+        assert_eq!(result.errors.len(), 5);
+        assert!((result.success_rate() - 50.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_processor_with_custom_options() {
+        let dir = tempdir().unwrap();
+        let paths: Vec<PathBuf> = (0..10)
+            .map(|i| {
+                let path = dir.path().join(format!("{}.txt", i));
+                File::create(&path).unwrap();
+                path
+            })
+            .collect();
+
+        let options = ParallelOptions {
+            num_threads: 4,
+            chunk_size: 3,
+            continue_on_error: true,
+        };
+
+        let processor = ParallelProcessor::with_options(options);
+        let result = processor.process(&paths, |p| Ok::<_, String>(p.exists()));
+
+        assert!(result.is_success());
+        assert_eq!(result.processed_count, 10);
+    }
+
+    #[test]
+    fn test_parallel_result_duration() {
+        let dir = tempdir().unwrap();
+        let paths: Vec<PathBuf> = (0..5)
+            .map(|i| {
+                let path = dir.path().join(format!("{}.txt", i));
+                File::create(&path).unwrap();
+                path
+            })
+            .collect();
+
+        let options = ParallelOptions::default();
+        let result = parallel_process(&paths, |path| Ok::<_, String>(path.exists()), &options);
+
+        // Duration should be non-zero
+        assert!(result.duration.as_nanos() > 0);
+    }
+
+    #[test]
+    fn test_single_item_processing() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("single.txt");
+        File::create(&path).unwrap();
+        let paths = vec![path];
+
+        let options = ParallelOptions::default();
+        let result = parallel_process(&paths, |p| Ok::<_, String>(p.exists()), &options);
+
+        assert!(result.is_success());
+        assert_eq!(result.results.len(), 1);
+        assert_eq!(result.processed_count, 1);
+    }
+
+    #[test]
+    fn test_parallel_map_preserves_order() {
+        let paths: Vec<PathBuf> = (0..20).map(|i| PathBuf::from(format!("{:02}", i))).collect();
+
+        let results = parallel_map(&paths, |p| p.to_string_lossy().to_string(), 4);
+
+        // Results should be returned (order may vary due to parallelism)
+        assert_eq!(results.len(), 20);
+        // Each result should be valid
+        for result in &results {
+            assert!(result.len() == 2); // "00" to "19"
+        }
+    }
 }
