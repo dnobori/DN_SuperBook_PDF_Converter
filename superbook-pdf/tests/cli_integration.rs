@@ -495,3 +495,104 @@ fn test_convert_with_single_arg() {
         .assert()
         .failure();
 }
+
+// ============ Config File Tests ============
+
+#[test]
+fn test_config_option_in_help() {
+    superbook_cmd()
+        .args(["convert", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--config"))
+        .stdout(predicate::str::contains("Configuration file"));
+}
+
+#[test]
+fn test_config_option_short_in_help() {
+    superbook_cmd()
+        .args(["convert", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("-c"));
+}
+
+#[test]
+fn test_config_nonexistent_file_warning() {
+    // Nonexistent config file should show warning but continue with defaults
+    superbook_cmd()
+        .args([
+            "convert",
+            "tests/fixtures/sample.pdf",
+            "/tmp/out",
+            "--dry-run",
+            "--config",
+            "/nonexistent/config.toml",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Warning"))
+        .stderr(predicate::str::contains("Failed to load config file"));
+}
+
+#[test]
+fn test_config_valid_file() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("test_config.toml");
+    std::fs::write(
+        &config_path,
+        r#"
+[general]
+dpi = 600
+
+[processing]
+deskew = false
+"#,
+    )
+    .unwrap();
+
+    superbook_cmd()
+        .args([
+            "convert",
+            "tests/fixtures/sample.pdf",
+            "/tmp/out",
+            "--dry-run",
+            "--config",
+            config_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        // Config values should be applied (DPI 600 from config)
+        .stdout(predicate::str::contains("DPI: 600"));
+}
+
+#[test]
+fn test_config_cli_overrides_config() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("test_config.toml");
+    std::fs::write(
+        &config_path,
+        r#"
+[general]
+dpi = 600
+"#,
+    )
+    .unwrap();
+
+    // CLI --dpi should override config file value
+    superbook_cmd()
+        .args([
+            "convert",
+            "tests/fixtures/sample.pdf",
+            "/tmp/out",
+            "--dry-run",
+            "--config",
+            config_path.to_str().unwrap(),
+            "--dpi",
+            "450",
+        ])
+        .assert()
+        .success()
+        // CLI value (450) should override config (600)
+        .stdout(predicate::str::contains("DPI: 450"));
+}

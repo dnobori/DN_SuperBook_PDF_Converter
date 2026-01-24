@@ -96,16 +96,6 @@ fn run_convert(args: &ConvertArgs) -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(exit_codes::INPUT_NOT_FOUND);
     }
 
-    if args.dry_run {
-        print_execution_plan(args, &pdf_files);
-        return Ok(());
-    }
-
-    // Create output directory
-    std::fs::create_dir_all(&args.output)?;
-
-    let verbose = args.verbose > 0;
-
     // Load config file if specified, otherwise use default
     let file_config = match &args.config {
         Some(config_path) => {
@@ -126,6 +116,16 @@ fn run_convert(args: &ConvertArgs) -> Result<(), Box<dyn std::error::Error>> {
     // Merge config file with CLI arguments (CLI takes precedence)
     let pipeline_config = file_config.merge_with_cli(&cli_overrides);
     let pipeline = PdfPipeline::new(pipeline_config);
+
+    if args.dry_run {
+        print_execution_plan(args, &pdf_files, pipeline.config());
+        return Ok(());
+    }
+
+    // Create output directory
+    std::fs::create_dir_all(&args.output)?;
+
+    let verbose = args.verbose > 0;
 
     // Create progress callback
     let progress = VerboseProgress::new(args.verbose.into());
@@ -227,28 +227,77 @@ fn run_convert(args: &ConvertArgs) -> Result<(), Box<dyn std::error::Error>> {
 // ============ Helper Functions ============
 
 /// Create CLI overrides from ConvertArgs
+///
+/// Only override config file values when CLI explicitly sets a non-default value.
+/// This allows config files to provide defaults that aren't overridden by clap defaults.
 fn create_cli_overrides(args: &ConvertArgs) -> CliOverrides {
     let mut overrides = CliOverrides::new();
 
+    // CLI defaults - only override if user explicitly changed these
+    const DEFAULT_DPI: u32 = 300;
+    const DEFAULT_MARGIN_TRIM: f32 = 0.5;
+    const DEFAULT_OUTPUT_HEIGHT: u32 = 3508;
+    const DEFAULT_JPEG_QUALITY: u8 = 90;
+
     // Basic options - only set if they differ from defaults
-    overrides.dpi = Some(args.dpi);
-    overrides.deskew = Some(args.effective_deskew());
-    overrides.margin_trim = Some(args.margin_trim as f64);
-    overrides.upscale = Some(args.effective_upscale());
-    overrides.gpu = Some(args.effective_gpu());
-    overrides.ocr = Some(args.ocr);
+    if args.dpi != DEFAULT_DPI {
+        overrides.dpi = Some(args.dpi);
+    }
+
+    // Deskew: override if --no-deskew was used
+    if !args.effective_deskew() {
+        overrides.deskew = Some(false);
+    }
+
+    // Margin trim: override if changed from default
+    if (args.margin_trim - DEFAULT_MARGIN_TRIM).abs() > f32::EPSILON {
+        overrides.margin_trim = Some(args.margin_trim as f64);
+    }
+
+    // Upscale: override if --no-upscale was used
+    if !args.effective_upscale() {
+        overrides.upscale = Some(false);
+    }
+
+    // GPU: override if --no-gpu was used
+    if !args.effective_gpu() {
+        overrides.gpu = Some(false);
+    }
+
+    // OCR: override if explicitly enabled
+    if args.ocr {
+        overrides.ocr = Some(true);
+    }
+
+    // Threads: only set if explicitly provided
     overrides.threads = args.threads;
 
-    // Advanced options
-    overrides.internal_resolution = Some(args.effective_internal_resolution());
-    overrides.color_correction = Some(args.effective_color_correction());
-    overrides.offset_alignment = Some(args.effective_offset_alignment());
-    overrides.output_height = Some(args.output_height);
-    overrides.jpeg_quality = Some(args.jpeg_quality);
+    // Advanced options - only set if explicitly enabled
+    if args.internal_resolution || args.advanced {
+        overrides.internal_resolution = Some(true);
+    }
+    if args.color_correction || args.advanced {
+        overrides.color_correction = Some(true);
+    }
+    if args.offset_alignment || args.advanced {
+        overrides.offset_alignment = Some(true);
+    }
+
+    // Output height: only set if changed from default
+    if args.output_height != DEFAULT_OUTPUT_HEIGHT {
+        overrides.output_height = Some(args.output_height);
+    }
+
+    // JPEG quality: only set if changed from default
+    if args.jpeg_quality != DEFAULT_JPEG_QUALITY {
+        overrides.jpeg_quality = Some(args.jpeg_quality);
+    }
 
     // Debug options
     overrides.max_pages = args.max_pages;
-    overrides.save_debug = Some(args.save_debug);
+    if args.save_debug {
+        overrides.save_debug = Some(true);
+    }
 
     overrides
 }
@@ -276,7 +325,7 @@ fn collect_pdf_files(input: &PathBuf) -> Result<Vec<PathBuf>, Box<dyn std::error
 }
 
 /// Print execution plan for dry-run mode
-fn print_execution_plan(args: &ConvertArgs, pdf_files: &[PathBuf]) {
+fn print_execution_plan(args: &ConvertArgs, pdf_files: &[PathBuf], config: &superbook_pdf::PipelineConfig) {
     println!("=== Dry Run - Execution Plan ===");
     println!();
     println!("Input: {}", args.input.display());
@@ -284,53 +333,53 @@ fn print_execution_plan(args: &ConvertArgs, pdf_files: &[PathBuf]) {
     println!("Files to process: {}", pdf_files.len());
     println!();
     println!("Pipeline Configuration:");
-    println!("  1. Image Extraction (DPI: {})", args.dpi);
-    if args.effective_deskew() {
+    println!("  1. Image Extraction (DPI: {})", config.dpi);
+    if config.deskew {
         println!("  2. Deskew Correction: ENABLED");
     } else {
         println!("  2. Deskew Correction: DISABLED");
     }
-    println!("  3. Margin Trim: {}%", args.margin_trim);
-    if args.effective_upscale() {
+    println!("  3. Margin Trim: {}%", config.margin_trim);
+    if config.upscale {
         println!("  4. AI Upscaling (RealESRGAN 2x): ENABLED");
     } else {
         println!("  4. AI Upscaling: DISABLED");
     }
-    if args.ocr {
+    if config.ocr {
         println!("  5. OCR (YomiToku): ENABLED");
     } else {
         println!("  5. OCR: DISABLED");
     }
-    if args.effective_internal_resolution() {
+    if config.internal_resolution {
         println!("  6. Internal Resolution Normalization (4960x7016): ENABLED");
     }
-    if args.effective_color_correction() {
+    if config.color_correction {
         println!("  7. Global Color Correction: ENABLED");
     }
-    if args.effective_offset_alignment() {
+    if config.offset_alignment {
         println!("  8. Page Number Offset Alignment: ENABLED");
     }
-    println!("  9. PDF Generation (output height: {})", args.output_height);
+    println!("  9. PDF Generation (output height: {})", config.output_height);
     println!();
     println!("Processing Options:");
-    println!("  Threads: {}", args.thread_count());
+    println!("  Threads: {}", config.threads.unwrap_or_else(num_cpus::get));
     if args.chunk_size > 0 {
         println!("  Chunk size: {} pages", args.chunk_size);
     } else {
         println!("  Chunk size: unlimited (all pages at once)");
     }
-    println!("  GPU: {}", if args.effective_gpu() { "YES" } else { "NO" });
+    println!("  GPU: {}", if config.gpu { "YES" } else { "NO" });
     println!("  Skip existing: {}", if args.skip_existing { "YES" } else { "NO" });
     println!("  Force re-process: {}", if args.force { "YES" } else { "NO" });
     println!("  Verbose: {}", args.verbose);
     println!();
     println!("Debug Options:");
-    if let Some(max) = args.max_pages {
+    if let Some(max) = config.max_pages {
         println!("  Max pages: {}", max);
     } else {
         println!("  Max pages: unlimited");
     }
-    println!("  Save debug images: {}", if args.save_debug { "YES" } else { "NO" });
+    println!("  Save debug images: {}", if config.save_debug { "YES" } else { "NO" });
     println!();
     println!("Files:");
     for (i, file) in pdf_files.iter().enumerate() {
