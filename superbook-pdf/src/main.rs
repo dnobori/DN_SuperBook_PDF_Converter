@@ -392,33 +392,66 @@ fn print_execution_plan(args: &ConvertArgs, pdf_files: &[PathBuf], config: &supe
 fn run_info() -> Result<(), Box<dyn std::error::Error>> {
     println!("superbook-pdf v{}", env!("CARGO_PKG_VERSION"));
     println!();
+
+    // System Information
     println!("System Information:");
     println!("  Platform: {}", std::env::consts::OS);
     println!("  Arch: {}", std::env::consts::ARCH);
     println!("  CPUs: {}", num_cpus::get());
 
-    println!();
-    println!("External Tools:");
-    check_tool("magick", "ImageMagick");
-    check_tool("pdftoppm", "Poppler (pdftoppm)");
-    check_tool("gs", "Ghostscript");
-    check_tool("tesseract", "Tesseract OCR");
+    // Memory info (Linux)
+    if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
+        if let Some(line) = meminfo.lines().find(|l| l.starts_with("MemTotal:")) {
+            if let Some(kb) = line.split_whitespace().nth(1) {
+                if let Ok(kb_val) = kb.parse::<u64>() {
+                    println!("  Memory: {:.1} GB", kb_val as f64 / 1_048_576.0);
+                }
+            }
+        }
+    }
 
+    // External Tools
+    println!();
+    println!("PDF Extraction Tools:");
+    check_tool_with_version("pdftoppm", "Poppler", &["-v"]);
+    check_tool_with_version("magick", "ImageMagick", &["--version"]);
+    check_tool("gs", "Ghostscript");
+
+    println!();
+    println!("OCR Tools:");
+    check_tool_with_version("tesseract", "Tesseract", &["--version"]);
+
+    // Python & AI Tools
+    println!();
+    println!("AI Tools (Python):");
+    check_python();
+
+    // GPU Status
     println!();
     println!("GPU Status:");
     if let Ok(output) = std::process::Command::new("nvidia-smi")
-        .arg("--query-gpu=name,memory.total")
+        .arg("--query-gpu=name,memory.total,driver_version")
         .arg("--format=csv,noheader")
         .output()
     {
         if output.status.success() {
             let gpu_info = String::from_utf8_lossy(&output.stdout);
-            println!("  NVIDIA GPU: {}", gpu_info.trim());
+            for line in gpu_info.trim().lines() {
+                println!("  NVIDIA: {}", line.trim());
+            }
         } else {
             println!("  NVIDIA GPU: Not detected");
         }
     } else {
         println!("  NVIDIA GPU: nvidia-smi not found");
+    }
+
+    // Config File Locations
+    println!();
+    println!("Config File Locations:");
+    println!("  Local: ./superbook.toml");
+    if let Some(config_dir) = dirs::config_dir() {
+        println!("  User:  {}", config_dir.join("superbook-pdf/config.toml").display());
     }
 
     Ok(())
@@ -428,6 +461,70 @@ fn check_tool(cmd: &str, name: &str) {
     match which::which(cmd) {
         Ok(path) => println!("  {}: {} (found)", name, path.display()),
         Err(_) => println!("  {}: Not found", name),
+    }
+}
+
+fn check_tool_with_version(cmd: &str, name: &str, version_args: &[&str]) {
+    match which::which(cmd) {
+        Ok(path) => {
+            // Try to get version
+            if let Ok(output) = std::process::Command::new(&path).args(version_args).output() {
+                let version_str = String::from_utf8_lossy(&output.stdout);
+                let first_line = version_str.lines().next().unwrap_or("");
+                if !first_line.is_empty() && first_line.len() < 80 {
+                    println!("  {}: {} ({})", name, first_line.trim(), path.display());
+                } else {
+                    println!("  {}: {} (found)", name, path.display());
+                }
+            } else {
+                println!("  {}: {} (found)", name, path.display());
+            }
+        }
+        Err(_) => println!("  {}: Not found", name),
+    }
+}
+
+fn check_python() {
+    // Check for Python
+    let python_cmd = if which::which("python3").is_ok() {
+        "python3"
+    } else if which::which("python").is_ok() {
+        "python"
+    } else {
+        println!("  Python: Not found");
+        return;
+    };
+
+    if let Ok(output) = std::process::Command::new(python_cmd)
+        .args(["--version"])
+        .output()
+    {
+        let version = String::from_utf8_lossy(&output.stdout);
+        println!("  Python: {}", version.trim());
+    }
+
+    // Check for RealESRGAN
+    if let Ok(output) = std::process::Command::new(python_cmd)
+        .args(["-c", "import realesrgan; print('available')"])
+        .output()
+    {
+        if output.status.success() {
+            println!("  RealESRGAN: Available");
+        } else {
+            println!("  RealESRGAN: Not installed");
+        }
+    }
+
+    // Check for YomiToku
+    if let Ok(output) = std::process::Command::new(python_cmd)
+        .args(["-c", "import yomitoku; print('available')"])
+        .output()
+    {
+        if output.status.success() {
+            println!("  YomiToku: Available");
+        } else {
+            println!("  YomiToku: Not installed");
+        }
     }
 }
 
