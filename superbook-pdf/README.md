@@ -196,12 +196,20 @@ cargo fmt -- --check
 - [x] PDF画像埋め込み
 - [x] Poppler fallback (ImageMagickなしでも動作)
 
-### 進行中 (v0.2.0)
+### 完了 (v0.2.0)
 
 - [x] 縦書き検出（日本語書籍向け） - `vertical_detect` モジュール
 - [x] JPEG圧縮オプション（ファイルサイズ削減） - `--jpeg-quality` CLI引数
 - [x] 並列処理の最適化 - Step 6/7/8/10を`rayon::par_iter`で並列化
+- [x] スマートキャッシュ機能 - sha256ベースの処理結果キャッシュ
+- [x] パイプラインモジュール - main.rs 68%削減リファクタリング
+- [x] デバッグオプション - `--max-pages`, `--save-debug`
+- [x] cache-infoサブコマンド - キャッシュ情報表示
+
+### 予定 (v0.3.0)
+
 - [ ] Webインターフェース
+- [ ] 設定ファイル対応
 
 ## ライセンス
 
