@@ -221,7 +221,7 @@ fn process_single_pdf(
         println!("    Extracted {} pages", extracted_pages.len());
     }
 
-    // Step 3: Deskew (if enabled)
+    // Step 3: Deskew (if enabled) - parallel
     let deskewed_dir = work_dir.join("deskewed");
     let images_after_deskew: Vec<PathBuf> = if args.effective_deskew() {
         if verbose {
@@ -230,22 +230,38 @@ fn process_single_pdf(
         std::fs::create_dir_all(&deskewed_dir)?;
 
         let deskew_options = DeskewOptions::default();
-        let mut deskewed_images = Vec::new();
 
-        for page in &extracted_pages {
-            let output_path = deskewed_dir.join(page.path.file_name().unwrap());
-            let result =
-                ImageProcDeskewer::correct_skew(&page.path, &output_path, &deskew_options)?;
+        // Prepare output paths
+        let output_paths: Vec<PathBuf> = extracted_pages
+            .iter()
+            .map(|page| deskewed_dir.join(page.path.file_name().unwrap()))
+            .collect();
 
-            if verbose && args.verbose > 1 && result.detection.angle.abs() > 0.1 {
-                println!(
-                    "    Page {}: corrected {:.2}°",
-                    page.page_index, result.detection.angle
-                );
-            }
-
-            deskewed_images.push(output_path);
-        }
+        // Deskew in parallel
+        let deskewed_images: Vec<PathBuf> = extracted_pages
+            .par_iter()
+            .zip(output_paths.par_iter())
+            .map(|(page, output_path)| {
+                match ImageProcDeskewer::correct_skew(&page.path, output_path, &deskew_options) {
+                    Ok(result) => {
+                        if verbose && args.verbose > 1 && result.detection.angle.abs() > 0.1 {
+                            eprintln!(
+                                "\n    Page {}: corrected {:.2}°",
+                                page.page_index, result.detection.angle
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        if verbose && args.verbose > 1 {
+                            eprintln!("\n    Page {}: deskew failed ({})", page.page_index, e);
+                        }
+                        // Copy original on failure
+                        std::fs::copy(&page.path, output_path).ok();
+                    }
+                }
+                output_path.clone()
+            })
+            .collect();
 
         deskewed_images
     } else {
@@ -277,32 +293,44 @@ fn process_single_pdf(
                     );
                 }
 
-                let mut trimmed_images = Vec::new();
-                for (i, img_path) in images_after_deskew.iter().enumerate() {
-                    let output_path = trimmed_dir.join(img_path.file_name().unwrap());
-                    match ImageMarginDetector::trim(img_path, &output_path, &unified.margins) {
-                        Ok(result) => {
-                            if verbose && args.verbose > 1 {
-                                println!(
-                                    "    Page {}: {}x{} -> {}x{}",
-                                    i,
-                                    result.original_size.0,
-                                    result.original_size.1,
-                                    result.trimmed_size.0,
-                                    result.trimmed_size.1
-                                );
+                // Trim all images in parallel
+                let output_paths: Vec<PathBuf> = images_after_deskew
+                    .iter()
+                    .map(|img_path| trimmed_dir.join(img_path.file_name().unwrap()))
+                    .collect();
+
+                let trimmed_images: Vec<PathBuf> = images_after_deskew
+                    .par_iter()
+                    .zip(output_paths.par_iter())
+                    .enumerate()
+                    .map(|(i, (img_path, output_path))| {
+                        match ImageMarginDetector::trim(img_path, output_path, &unified.margins) {
+                            Ok(result) => {
+                                if verbose && args.verbose > 1 {
+                                    eprintln!(
+                                        "\n    Page {}: {}x{} -> {}x{}",
+                                        i,
+                                        result.original_size.0,
+                                        result.original_size.1,
+                                        result.trimmed_size.0,
+                                        result.trimmed_size.1
+                                    );
+                                }
                             }
-                            trimmed_images.push(output_path);
-                        }
-                        Err(e) => {
-                            if verbose {
-                                println!("    Page {}: trim failed ({}), keeping original", i, e);
+                            Err(e) => {
+                                if verbose && args.verbose > 1 {
+                                    eprintln!(
+                                        "\n    Page {}: trim failed ({}), keeping original",
+                                        i, e
+                                    );
+                                }
+                                std::fs::copy(img_path, output_path).ok();
                             }
-                            std::fs::copy(img_path, &output_path)?;
-                            trimmed_images.push(output_path);
                         }
-                    }
-                }
+                        output_path.clone()
+                    })
+                    .collect();
+
                 trimmed_images
             }
             Err(e) => {
