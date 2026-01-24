@@ -384,23 +384,49 @@ impl PrintPdfWriter {
 
     /// Add image to a PDF layer
     fn add_image_to_layer(
-        _doc: &printpdf::PdfDocumentReference,
-        _page: printpdf::PdfPageIndex,
-        _layer: printpdf::PdfLayerIndex,
-        _img: &image::DynamicImage,
-        _width_mm: f32,
-        _height_mm: f32,
+        doc: &printpdf::PdfDocumentReference,
+        page: printpdf::PdfPageIndex,
+        layer: printpdf::PdfLayerIndex,
+        img: &image::DynamicImage,
+        width_mm: f32,
+        height_mm: f32,
     ) -> Result<()> {
-        // Note: printpdf image handling requires specific implementation
-        // This is a simplified placeholder - full implementation would convert
-        // the image to JPEG/PNG bytes and embed using printpdf's image API
+        use printpdf::{Image, ImageTransform, Mm, Px};
 
-        // For now, we just return Ok to allow the test to pass
-        // In a complete implementation, we would:
-        // 1. Convert image to RGB8
-        // 2. Encode as JPEG with specified quality
-        // 3. Create printpdf::Image from bytes
-        // 4. Add image to layer at position (0,0) with correct scaling
+        // Convert image to RGB8 format
+        let rgb_img = img.to_rgb8();
+        let (img_width, img_height) = rgb_img.dimensions();
+
+        // Create printpdf Image from raw RGB data
+        let image_data = printpdf::ImageXObject {
+            width: Px(img_width as usize),
+            height: Px(img_height as usize),
+            color_space: printpdf::ColorSpace::Rgb,
+            bits_per_component: printpdf::ColorBits::Bit8,
+            interpolate: true,
+            image_data: rgb_img.into_raw(),
+            image_filter: None,
+            clipping_bbox: None,
+            smask: None,
+        };
+
+        let image = Image::from(image_data);
+
+        // Get layer reference
+        let layer_ref = doc.get_page(page).get_layer(layer);
+
+        // Calculate transform to fit image to page
+        // Image should fill the entire page
+        let transform = ImageTransform {
+            translate_x: Some(Mm(0.0)),
+            translate_y: Some(Mm(0.0)),
+            scale_x: Some(width_mm / (img_width as f32 / 72.0 * MM_PER_INCH / 72.0)),
+            scale_y: Some(height_mm / (img_height as f32 / 72.0 * MM_PER_INCH / 72.0)),
+            rotate: None,
+            dpi: Some(300.0),
+        };
+
+        image.add_to_layer(layer_ref, transform);
 
         Ok(())
     }
