@@ -1,1 +1,0 @@
-rd_("msuperbook_pdf")

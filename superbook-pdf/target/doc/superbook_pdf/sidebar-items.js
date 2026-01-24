@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["ai_bridge","cli","deskew","exit_codes","image_extract","margin","page_number","pdf_reader","pdf_writer","realesrgan","util","yomitoku"]};

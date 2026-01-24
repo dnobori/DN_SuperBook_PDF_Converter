@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ColorSpace","ExtractError","ImageFormat"],"struct":["ExtractOptions","ExtractOptionsBuilder","ExtractedPage","MagickExtractor"],"trait":["ImageExtractor"],"type":["Result"]};

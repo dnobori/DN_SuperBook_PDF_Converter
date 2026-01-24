@@ -1,2 +1,0 @@
-createSrcSidebar('[["superbook_pdf",["",[],["ai_bridge.rs","cli.rs","deskew.rs","image_extract.rs","lib.rs","margin.rs","page_number.rs","pdf_reader.rs","pdf_writer.rs","realesrgan.rs","util.rs","yomitoku.rs"]]]]');
-//{"start":19,"fragment_lengths":[192]}

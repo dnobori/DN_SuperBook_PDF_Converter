@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Language","OutputFormat","TextDirection","YomiTokuError"],"struct":["BatchOcrResult","OcrResult","TextBlock","YomiToku","YomiTokuOptions","YomiTokuOptionsBuilder"],"type":["Result"]};

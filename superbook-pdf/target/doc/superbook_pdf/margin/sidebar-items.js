@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ContentDetectionMode","MarginError"],"struct":["ContentRect","ImageMarginDetector","MarginDetection","MarginOptions","MarginOptionsBuilder","Margins","TrimResult","UnifiedMargins"],"trait":["MarginDetector"],"type":["Result"]};

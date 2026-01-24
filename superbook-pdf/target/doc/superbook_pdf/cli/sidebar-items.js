@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Commands","ExitCode"],"fn":["create_page_progress_bar","create_progress_bar","create_spinner"],"struct":["Cli","ConvertArgs"]};

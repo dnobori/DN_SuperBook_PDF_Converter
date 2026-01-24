@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["AiBridgeError","AiTool","LogLevel","ProcessStatus"],"struct":["AiBridgeConfig","AiBridgeConfigBuilder","AiTaskResult","GpuConfig","GpuStats","RetryConfig","SubprocessBridge"],"trait":["AiBridge"],"type":["Result"]};

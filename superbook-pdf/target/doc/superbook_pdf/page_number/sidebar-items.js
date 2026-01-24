@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["PageNumberError","PageNumberPosition"],"struct":["DetectedPageNumber","OffsetCorrection","PageNumberAnalysis","PageNumberOptions","PageNumberOptionsBuilder","PageNumberRect","TesseractPageDetector"],"trait":["PageNumberDetector"],"type":["Result"]};
