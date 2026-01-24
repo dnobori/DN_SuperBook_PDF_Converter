@@ -4,6 +4,7 @@
 
 use axum::Router;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -24,6 +25,8 @@ pub struct ServerConfig {
     pub upload_limit: usize,
     /// Job timeout in seconds
     pub job_timeout: u64,
+    /// Working directory for uploads and outputs
+    pub work_dir: PathBuf,
 }
 
 impl Default for ServerConfig {
@@ -34,6 +37,7 @@ impl Default for ServerConfig {
             workers: num_cpus::get(),
             upload_limit: DEFAULT_UPLOAD_LIMIT,
             job_timeout: super::DEFAULT_JOB_TIMEOUT,
+            work_dir: std::env::temp_dir().join("superbook-pdf"),
         }
     }
 }
@@ -72,18 +76,17 @@ pub struct WebServer {
 impl WebServer {
     /// Create a new web server with default configuration
     pub fn new() -> Self {
-        Self {
-            config: ServerConfig::default(),
-            state: Arc::new(AppState::new()),
-        }
+        let config = ServerConfig::default();
+        std::fs::create_dir_all(&config.work_dir).ok();
+        let state = Arc::new(AppState::new(config.work_dir.clone(), config.workers));
+        Self { config, state }
     }
 
     /// Create a new web server with the given configuration
     pub fn with_config(config: ServerConfig) -> Self {
-        Self {
-            config,
-            state: Arc::new(AppState::new()),
-        }
+        std::fs::create_dir_all(&config.work_dir).ok();
+        let state = Arc::new(AppState::new(config.work_dir.clone(), config.workers));
+        Self { config, state }
     }
 
     /// Get the server configuration
@@ -159,14 +162,14 @@ mod tests {
         assert_eq!(addr.ip().to_string(), "127.0.0.1");
     }
 
-    #[test]
-    fn test_web_server_new() {
+    #[tokio::test]
+    async fn test_web_server_new() {
         let server = WebServer::new();
         assert_eq!(server.config().port, 8080);
     }
 
-    #[test]
-    fn test_web_server_with_config() {
+    #[tokio::test]
+    async fn test_web_server_with_config() {
         let config = ServerConfig::default().with_port(9000);
         let server = WebServer::with_config(config);
         assert_eq!(server.config().port, 9000);

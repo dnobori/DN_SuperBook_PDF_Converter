@@ -14,26 +14,32 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::job::{ConvertOptions, Job, JobQueue};
+use super::worker::WorkerPool;
+
+use std::path::PathBuf;
 
 /// Application state shared across handlers
-#[derive(Clone)]
 pub struct AppState {
     pub queue: JobQueue,
     pub version: String,
+    pub worker_pool: WorkerPool,
+    pub upload_dir: PathBuf,
 }
 
 impl AppState {
-    pub fn new() -> Self {
-        Self {
-            queue: JobQueue::new(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-        }
-    }
-}
+    pub fn new(work_dir: PathBuf, worker_count: usize) -> Self {
+        let queue = JobQueue::new();
+        let upload_dir = work_dir.join("uploads");
+        std::fs::create_dir_all(&upload_dir).ok();
 
-impl Default for AppState {
-    fn default() -> Self {
-        Self::new()
+        let worker_pool = WorkerPool::new(queue.clone(), work_dir, worker_count);
+
+        Self {
+            queue,
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            worker_pool,
+            upload_dir,
+        }
     }
 }
 
@@ -92,7 +98,7 @@ async fn upload_and_convert(
 ) -> Result<(StatusCode, Json<UploadResponse>), AppError> {
     let mut filename = String::new();
     let mut options = ConvertOptions::default();
-    let mut _file_data: Option<Vec<u8>> = None;
+    let mut file_data: Option<Vec<u8>> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
@@ -104,7 +110,7 @@ async fn upload_and_convert(
                     .unwrap_or("upload.pdf")
                     .to_string();
                 if let Ok(data) = field.bytes().await {
-                    _file_data = Some(data.to_vec());
+                    file_data = Some(data.to_vec());
                 }
             }
             "options" => {
@@ -122,13 +128,29 @@ async fn upload_and_convert(
         return Err(AppError::BadRequest("No file uploaded".to_string()));
     }
 
-    let job = Job::new(filename, options);
+    let file_data = file_data.ok_or_else(|| AppError::BadRequest("No file data".to_string()))?;
+
+    // Create job
+    let job = Job::new(&filename, options);
     let job_id = job.id;
     let created_at = job.created_at.to_rfc3339();
 
+    // Save uploaded file
+    let input_path = state.upload_dir.join(format!("{}_{}", job_id, filename));
+    std::fs::write(&input_path, &file_data).map_err(|e| {
+        AppError::Internal(format!("Failed to save uploaded file: {}", e))
+    })?;
+
+    // Submit job to queue
     state.queue.submit(job);
 
-    // TODO: Trigger background processing
+    // Trigger background processing
+    if let Err(e) = state.worker_pool.submit(job_id, input_path).await {
+        // Update job as failed if we couldn't submit
+        state.queue.update(job_id, |job| {
+            job.fail(format!("Failed to start processing: {}", e));
+        });
+    }
 
     Ok((
         StatusCode::ACCEPTED,
@@ -264,10 +286,12 @@ impl IntoResponse for AppError {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_app_state_new() {
-        let state = AppState::new();
+    #[tokio::test]
+    async fn test_app_state_new() {
+        let work_dir = std::env::temp_dir().join("superbook_test_routes");
+        let state = AppState::new(work_dir.clone(), 1);
         assert!(!state.version.is_empty());
+        std::fs::remove_dir_all(&work_dir).ok();
     }
 
     #[test]

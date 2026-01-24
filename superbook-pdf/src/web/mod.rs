@@ -23,9 +23,11 @@
 mod job;
 mod routes;
 mod server;
+mod worker;
 
 pub use job::{ConvertOptions, Job, JobQueue, JobStatus, Progress};
 pub use server::{ServerConfig, WebServer};
+pub use worker::{JobWorker, WorkerPool};
 
 /// Default server port
 pub const DEFAULT_PORT: u16 = 8080;
