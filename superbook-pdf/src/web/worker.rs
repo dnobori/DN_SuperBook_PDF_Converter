@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::job::{ConvertOptions, JobQueue, JobStatus, Progress};
+use super::websocket::WsBroadcaster;
 use crate::pipeline::{PdfPipeline, PipelineConfig, ProgressCallback};
 
 /// Worker message types
@@ -92,6 +93,8 @@ fn to_pipeline_config(options: &ConvertOptions) -> PipelineConfig {
         save_debug: false,
         jpeg_quality: 90,
         threads: None,
+        max_memory_mb: 0,  // Auto-detect
+        chunk_size: 0,    // Auto-calculate
     }
 }
 
@@ -100,6 +103,7 @@ pub struct JobWorker {
     queue: JobQueue,
     receiver: mpsc::Receiver<WorkerMessage>,
     work_dir: PathBuf,
+    broadcaster: Arc<WsBroadcaster>,
 }
 
 impl JobWorker {
@@ -108,11 +112,13 @@ impl JobWorker {
         queue: JobQueue,
         receiver: mpsc::Receiver<WorkerMessage>,
         work_dir: PathBuf,
+        broadcaster: Arc<WsBroadcaster>,
     ) -> Self {
         Self {
             queue,
             receiver,
             work_dir,
+            broadcaster,
         }
     }
 
@@ -142,6 +148,14 @@ impl JobWorker {
             job.update_progress(Progress::new(1, 13, "Starting"));
         });
 
+        // Broadcast status change via WebSocket
+        self.broadcaster
+            .broadcast_status_change(job_id, JobStatus::Queued, JobStatus::Processing)
+            .await;
+        self.broadcaster
+            .broadcast_progress(job_id, 1, 13, "Starting")
+            .await;
+
         // Check if job was cancelled
         if let Some(job) = self.queue.get(job_id) {
             if job.status == JobStatus::Cancelled {
@@ -152,9 +166,11 @@ impl JobWorker {
         // Create output directory
         let output_dir = self.work_dir.join("output");
         if let Err(e) = std::fs::create_dir_all(&output_dir) {
+            let error_msg = format!("Failed to create output directory: {}", e);
             self.queue.update(job_id, |job| {
-                job.fail(format!("Failed to create output directory: {}", e));
+                job.fail(error_msg.clone());
             });
+            self.broadcaster.broadcast_error(job_id, &error_msg).await;
             return;
         }
 
@@ -167,6 +183,7 @@ impl JobWorker {
 
         // Run pipeline in blocking task (pipeline uses rayon internally)
         let queue = self.queue.clone();
+        let broadcaster = self.broadcaster.clone();
         let result = tokio::task::spawn_blocking(move || {
             pipeline.process_with_progress(&input_path, &output_dir, &progress)
         })
@@ -175,21 +192,31 @@ impl JobWorker {
         match result {
             Ok(Ok(pipeline_result)) => {
                 // Pipeline succeeded
+                let page_count = pipeline_result.page_count;
+                let elapsed = pipeline_result.elapsed_seconds;
                 self.queue.update(job_id, |job| {
                     job.complete(pipeline_result.output_path);
                 });
+                // Broadcast completion via WebSocket
+                self.broadcaster
+                    .broadcast_completed(job_id, elapsed, page_count)
+                    .await;
             }
             Ok(Err(e)) => {
                 // Pipeline error
+                let error_msg = format!("Pipeline error: {}", e);
                 queue.update(job_id, |job| {
-                    job.fail(format!("Pipeline error: {}", e));
+                    job.fail(error_msg.clone());
                 });
+                broadcaster.broadcast_error(job_id, &error_msg).await;
             }
             Err(e) => {
                 // Task panic
+                let error_msg = format!("Task panic: {}", e);
                 queue.update(job_id, |job| {
-                    job.fail(format!("Task panic: {}", e));
+                    job.fail(error_msg.clone());
                 });
+                broadcaster.broadcast_error(job_id, &error_msg).await;
             }
         }
     }
@@ -199,11 +226,17 @@ impl JobWorker {
 pub struct WorkerPool {
     sender: mpsc::Sender<WorkerMessage>,
     work_dir: PathBuf,
+    worker_count: usize,
 }
 
 impl WorkerPool {
     /// Create a new worker pool
-    pub fn new(queue: JobQueue, work_dir: PathBuf, worker_count: usize) -> Self {
+    pub fn new(
+        queue: JobQueue,
+        work_dir: PathBuf,
+        worker_count: usize,
+        broadcaster: Arc<WsBroadcaster>,
+    ) -> Self {
         let (sender, receiver) = mpsc::channel::<WorkerMessage>(100);
 
         // Spawn workers
@@ -213,6 +246,7 @@ impl WorkerPool {
             let queue = queue.clone();
             let work_dir = work_dir.clone();
             let receiver = receiver.clone();
+            let broadcaster = broadcaster.clone();
 
             tokio::spawn(async move {
                 loop {
@@ -229,7 +263,12 @@ impl WorkerPool {
                         }) => {
                             // Create a temporary worker for this job
                             let (_, dummy_rx) = mpsc::channel(1);
-                            let worker = JobWorker::new(queue.clone(), dummy_rx, work_dir.clone());
+                            let worker = JobWorker::new(
+                                queue.clone(),
+                                dummy_rx,
+                                work_dir.clone(),
+                                broadcaster.clone(),
+                            );
                             worker.process_job(job_id, input_path, options).await;
                         }
                         Some(WorkerMessage::Shutdown) | None => {
@@ -240,7 +279,7 @@ impl WorkerPool {
             });
         }
 
-        Self { sender, work_dir }
+        Self { sender, work_dir, worker_count }
     }
 
     /// Submit a job for processing
@@ -270,6 +309,11 @@ impl WorkerPool {
         // Send shutdown message (workers will exit after current job)
         let _ = self.sender.send(WorkerMessage::Shutdown).await;
     }
+
+    /// Get the number of workers
+    pub fn worker_count(&self) -> usize {
+        self.worker_count
+    }
 }
 
 #[cfg(test)]
@@ -292,7 +336,8 @@ mod tests {
     async fn test_worker_pool_creation() {
         let queue = JobQueue::new();
         let work_dir = std::env::temp_dir();
-        let _pool = WorkerPool::new(queue, work_dir, 2);
+        let broadcaster = Arc::new(WsBroadcaster::new());
+        let _pool = WorkerPool::new(queue, work_dir, 2, broadcaster);
         // Pool created successfully
     }
 
@@ -332,7 +377,8 @@ mod tests {
         let work_dir = std::env::temp_dir().join("superbook_test_worker");
         std::fs::create_dir_all(&work_dir).ok();
 
-        let pool = WorkerPool::new(queue.clone(), work_dir.clone(), 1);
+        let broadcaster = Arc::new(WsBroadcaster::new());
+        let pool = WorkerPool::new(queue.clone(), work_dir.clone(), 1, broadcaster);
 
         // Create a job
         let options = ConvertOptions::default();

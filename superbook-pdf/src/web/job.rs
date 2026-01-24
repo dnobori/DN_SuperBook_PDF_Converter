@@ -263,6 +263,14 @@ impl JobQueue {
             .collect()
     }
 
+    /// Get count of pending jobs (queued or processing)
+    pub fn pending_count(&self) -> usize {
+        let jobs = self.jobs.read().expect("lock poisoned");
+        jobs.values()
+            .filter(|j| matches!(j.status, JobStatus::Queued | JobStatus::Processing))
+            .count()
+    }
+
     /// Remove completed/failed jobs older than the given duration
     pub fn cleanup(&self, max_age: std::time::Duration) {
         let mut jobs = self.jobs.write().expect("lock poisoned");
@@ -446,6 +454,25 @@ mod tests {
 
         let pending = queue.pending();
         assert_eq!(pending.len(), 2); // job2 (queued) + job3 (processing)
+    }
+
+    #[test]
+    fn test_job_queue_pending_count() {
+        let queue = JobQueue::new();
+
+        let mut job1 = Job::new("test1.pdf", ConvertOptions::default());
+        let job2 = Job::new("test2.pdf", ConvertOptions::default());
+        let mut job3 = Job::new("test3.pdf", ConvertOptions::default());
+
+        job1.complete(PathBuf::from("/tmp/out1.pdf"));
+        job3.start();
+
+        queue.submit(job1);
+        queue.submit(job2);
+        queue.submit(job3);
+
+        // pending_count should be 2 (job2 queued + job3 processing)
+        assert_eq!(queue.pending_count(), 2);
     }
 
     #[test]

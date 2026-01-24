@@ -6,10 +6,11 @@ use axum::Router;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
 
-use super::routes::{api_routes, web_routes, AppState};
+use super::cors::CorsConfig;
+use super::routes::{api_routes, web_routes, ws_routes, AppState};
+use super::shutdown::{ShutdownConfig, wait_for_shutdown_signal};
 use super::{DEFAULT_BIND, DEFAULT_PORT, DEFAULT_UPLOAD_LIMIT};
 
 /// Server configuration
@@ -27,6 +28,10 @@ pub struct ServerConfig {
     pub job_timeout: u64,
     /// Working directory for uploads and outputs
     pub work_dir: PathBuf,
+    /// CORS configuration
+    pub cors: CorsConfig,
+    /// Graceful shutdown configuration
+    pub shutdown: ShutdownConfig,
 }
 
 impl Default for ServerConfig {
@@ -38,6 +43,8 @@ impl Default for ServerConfig {
             upload_limit: DEFAULT_UPLOAD_LIMIT,
             job_timeout: super::DEFAULT_JOB_TIMEOUT,
             work_dir: std::env::temp_dir().join("superbook-pdf"),
+            cors: CorsConfig::default(),
+            shutdown: ShutdownConfig::default(),
         }
     }
 }
@@ -58,6 +65,30 @@ impl ServerConfig {
     /// Create a new server config with the given upload limit
     pub fn with_upload_limit(mut self, limit: usize) -> Self {
         self.upload_limit = limit;
+        self
+    }
+
+    /// Set CORS configuration
+    pub fn with_cors(mut self, cors: CorsConfig) -> Self {
+        self.cors = cors;
+        self
+    }
+
+    /// Set permissive CORS (for development)
+    pub fn with_cors_permissive(mut self) -> Self {
+        self.cors = CorsConfig::permissive();
+        self
+    }
+
+    /// Set strict CORS with specific origins (for production)
+    pub fn with_cors_origins(mut self, origins: Vec<String>) -> Self {
+        self.cors = CorsConfig::strict(origins);
+        self
+    }
+
+    /// Disable CORS
+    pub fn with_cors_disabled(mut self) -> Self {
+        self.cors = CorsConfig::disabled();
         self
     }
 
@@ -99,7 +130,8 @@ impl WebServer {
         Router::new()
             .merge(web_routes())
             .nest("/api", api_routes())
-            .layer(CorsLayer::permissive())
+            .nest("/ws", ws_routes())
+            .layer(self.config.cors.clone().into_layer())
             .layer(RequestBodyLimitLayer::new(self.config.upload_limit))
             .with_state(self.state.clone())
     }
@@ -116,10 +148,18 @@ impl WebServer {
         println!("  DELETE /api/jobs/:id  - Cancel job");
         println!("  GET  /api/jobs/:id/download - Download result");
         println!("  GET  /api/health      - Health check");
+        println!("WebSocket endpoints:");
+        println!("  WS   /ws/jobs/:id     - Real-time job progress");
+        println!("Press Ctrl+C to shutdown gracefully");
 
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, router).await?;
 
+        // Run server with graceful shutdown
+        axum::serve(listener, router)
+            .with_graceful_shutdown(wait_for_shutdown_signal())
+            .await?;
+
+        println!("Server shutdown complete");
         Ok(())
     }
 }
@@ -174,5 +214,70 @@ mod tests {
         let config = ServerConfig::default().with_port(9000);
         let server = WebServer::with_config(config);
         assert_eq!(server.config().port, 9000);
+    }
+
+    // CORS integration tests
+    #[test]
+    fn test_server_config_default_cors() {
+        let config = ServerConfig::default();
+        assert!(config.cors.enabled);
+        assert!(config.cors.allowed_origins.is_none()); // All origins allowed by default
+    }
+
+    #[test]
+    fn test_server_config_with_cors() {
+        let cors = CorsConfig::strict(vec!["https://example.com".to_string()]);
+        let config = ServerConfig::default().with_cors(cors);
+        assert!(config.cors.allowed_origins.is_some());
+        assert_eq!(
+            config.cors.allowed_origins.as_ref().unwrap()[0],
+            "https://example.com"
+        );
+    }
+
+    #[test]
+    fn test_server_config_with_cors_permissive() {
+        let config = ServerConfig::default().with_cors_permissive();
+        assert!(config.cors.enabled);
+        assert!(config.cors.allow_credentials);
+        assert!(config.cors.allowed_headers.contains(&"*".to_string()));
+    }
+
+    #[test]
+    fn test_server_config_with_cors_origins() {
+        let config = ServerConfig::default().with_cors_origins(vec![
+            "https://app1.example.com".to_string(),
+            "https://app2.example.com".to_string(),
+        ]);
+        assert!(config.cors.enabled);
+        let origins = config.cors.allowed_origins.as_ref().unwrap();
+        assert_eq!(origins.len(), 2);
+        assert!(origins.contains(&"https://app1.example.com".to_string()));
+        assert!(origins.contains(&"https://app2.example.com".to_string()));
+    }
+
+    #[test]
+    fn test_server_config_with_cors_disabled() {
+        let config = ServerConfig::default().with_cors_disabled();
+        assert!(!config.cors.enabled);
+    }
+
+    #[tokio::test]
+    async fn test_web_server_with_cors_config() {
+        let config = ServerConfig::default()
+            .with_port(9001)
+            .with_cors_permissive();
+        let server = WebServer::with_config(config);
+        assert!(server.config().cors.enabled);
+        assert!(server.config().cors.allow_credentials);
+    }
+
+    #[tokio::test]
+    async fn test_web_server_build_router_with_cors() {
+        let config = ServerConfig::default()
+            .with_cors_origins(vec!["https://test.example.com".to_string()]);
+        let server = WebServer::with_config(config);
+        // Router should build successfully with CORS layer
+        let _router = server.build_router();
     }
 }

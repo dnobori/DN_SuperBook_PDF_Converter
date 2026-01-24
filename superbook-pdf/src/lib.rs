@@ -168,9 +168,11 @@ pub use margin::{
     TrimResult, UnifiedCropRegions, UnifiedMargins,
 };
 pub use page_number::{
-    BookOffsetAnalysis, DetectedPageNumber, OffsetCorrection, PageNumberAnalysis, PageNumberError,
-    PageNumberOptions, PageNumberOptionsBuilder, PageNumberPosition, PageNumberRect,
-    PageOffsetAnalyzer, PageOffsetResult, TesseractPageDetector,
+    calc_group_reference_position, calc_overlap_center, find_page_number_with_fallback,
+    find_page_numbers_batch, BookOffsetAnalysis, DetectedPageNumber, FallbackMatchStats,
+    MatchStage, OffsetCorrection, PageNumberAnalysis, PageNumberCandidate, PageNumberError,
+    PageNumberMatch, PageNumberOptions, PageNumberOptionsBuilder, PageNumberPosition,
+    PageNumberRect, PageOffsetAnalyzer, PageOffsetResult, Point, Rectangle, TesseractPageDetector,
 };
 pub use pdf_reader::{LopdfReader, PdfDocument, PdfMetadata, PdfPage, PdfReaderError};
 pub use pdf_writer::{PdfWriterError, PdfWriterOptions, PdfWriterOptionsBuilder, PrintPdfWriter};
@@ -207,15 +209,23 @@ pub use cache::{
     CACHE_VERSION,
 };
 pub use pipeline::{
-    PdfPipeline, PipelineConfig, PipelineError, PipelineResult, ProcessingContext,
-    ProgressCallback, SilentProgress,
+    calculate_optimal_chunk_size, process_in_chunks, PdfPipeline, PipelineConfig, PipelineError,
+    PipelineResult, ProcessingContext, ProgressCallback, SilentProgress,
 };
 
 // Web server (optional feature)
 #[cfg(feature = "web")]
 pub use web::{
-    ConvertOptions as WebConvertOptions, Job, JobQueue, JobStatus, Progress as WebProgress,
-    ServerConfig, WebServer,
+    generate_preview_base64, preview_stage, ApiKey, AuthConfig, AuthError, AuthManager,
+    AuthResult, AuthStatusResponse, BatchJob, BatchProgress, BatchQueue, BatchStatistics,
+    BatchStatus, ConvertOptions as WebConvertOptions, CorsConfig, HistoryQuery, HistoryResponse,
+    Job, JobQueue, JobStatistics, JobStatus, JobStore, JsonJobStore, MetricsCollector,
+    PersistenceConfig, Priority, Progress as WebProgress, RateLimitConfig, RateLimitError,
+    RateLimitResult, RateLimiter, RateLimitStatus, RecoveryManager, RecoveryResult, RetryResponse,
+    Scope, ServerConfig, ServerInfo, ShutdownConfig, ShutdownCoordinator, ShutdownResult,
+    ShutdownSignal, StatsResponse, StorageBackend, StoreError, SystemMetrics, WebServer,
+    WsBroadcaster, WsMessage, extract_api_key, graceful_shutdown, wait_for_shutdown_signal,
+    PREVIEW_WIDTH,
 };
 
 /// Exit codes for CLI (deprecated: prefer using `ExitCode` enum)

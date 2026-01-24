@@ -39,12 +39,13 @@ toml = "0.8"
 dirs = "6"
 
 # Web server (optional)
-axum = { version = "0.8", features = ["multipart"], optional = true }
+axum = { version = "0.8", features = ["multipart", "ws"], optional = true }
 tokio = { version = "1", features = ["full"], optional = true }
 tower = { version = "0.5", optional = true }
 tower-http = { version = "0.6", features = ["fs", "cors", "limit"], optional = true }
 uuid = { version = "1", features = ["v4", "serde"], optional = true }
 rust-embed = { version = "8", optional = true }
+dashmap = { version = "6", optional = true }
 
 # Utilities
 tempfile = "3"
@@ -52,9 +53,13 @@ which = "7"
 sha2 = "0.10.9"
 chrono = { version = "0.4.43", features = ["serde"] }
 
+# Enhancement dependencies
+strsim = "0.11"           # String similarity for fuzzy matching
+base64 = "0.22"           # Base64 encoding for preview images
+
 [features]
 default = []
-web = ["axum", "tokio", "tower", "tower-http", "uuid", "rust-embed"]
+web = ["axum", "tokio", "tower", "tower-http", "uuid", "rust-embed", "dashmap"]
 
 [dev-dependencies]
 tempfile = "3"

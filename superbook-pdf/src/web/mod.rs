@@ -18,15 +18,33 @@
 //! superbook-pdf serve --port 8080
 //! ```
 //!
-//! Spec Reference: specs/20-web.spec.md
+//! Spec Reference: specs/20-web.spec.md, specs/21-websocket.spec.md, specs/22-batch.spec.md
 
+mod auth;
+mod batch;
+mod cors;
 mod job;
+mod metrics;
+mod persistence;
+mod rate_limit;
 mod routes;
 mod server;
+mod shutdown;
+mod websocket;
 mod worker;
 
+pub use auth::{ApiKey, AuthConfig, AuthError, AuthManager, AuthResult, AuthStatusResponse, Scope, extract_api_key};
+pub use batch::{BatchJob, BatchProgress, BatchQueue, BatchStatus, Priority};
+pub use cors::CorsConfig;
 pub use job::{ConvertOptions, Job, JobQueue, JobStatus, Progress};
+pub use metrics::{BatchStatistics, JobStatistics, MetricsCollector, ServerInfo, StatsResponse, SystemMetrics};
+pub use persistence::{HistoryQuery, HistoryResponse, JsonJobStore, JobStore, PersistenceConfig, RecoveryManager, RecoveryResult, RetryResponse, StorageBackend, StoreError};
+pub use rate_limit::{RateLimitConfig, RateLimitError, RateLimitResult, RateLimiter, RateLimitStatus};
 pub use server::{ServerConfig, WebServer};
+pub use shutdown::{ShutdownConfig, ShutdownCoordinator, ShutdownResult, ShutdownSignal, graceful_shutdown, wait_for_shutdown_signal};
+pub use websocket::{
+    generate_preview_base64, preview_stage, WsBroadcaster, WsMessage, PREVIEW_WIDTH,
+};
 pub use worker::{JobWorker, WorkerPool};
 
 /// Default server port

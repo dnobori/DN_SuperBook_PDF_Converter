@@ -4,7 +4,10 @@
 
 #![cfg(feature = "web")]
 
-use superbook_pdf::{Job, JobQueue, JobStatus, ServerConfig, WebConvertOptions, WebProgress};
+use superbook_pdf::{
+    BatchJob, BatchProgress, BatchQueue, BatchStatus, Job, JobQueue, JobStatus, Priority,
+    ServerConfig, WebConvertOptions, WebProgress,
+};
 use std::path::PathBuf;
 
 #[cfg(test)]
@@ -246,5 +249,177 @@ mod tests {
         let job = queue.get(job_id).unwrap();
         assert_eq!(job.output_path, Some(output));
         assert!(job.completed_at.is_some());
+    }
+
+    // ========== Batch API Integration Tests ==========
+
+    // TC-BATCH-INT-001: Batch job creation and queue
+    #[tokio::test]
+    async fn test_batch_queue_integration() {
+        let job_queue = JobQueue::new();
+        let batch_queue = BatchQueue::new(job_queue.clone());
+
+        let options = WebConvertOptions::default();
+        let batch = BatchJob::new(options, Priority::Normal);
+        let batch_id = batch.id;
+
+        batch_queue.submit(batch).await;
+
+        let retrieved = batch_queue.get(batch_id).await;
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().status, BatchStatus::Queued);
+    }
+
+    // TC-BATCH-INT-002: Batch with multiple jobs
+    #[tokio::test]
+    async fn test_batch_with_jobs() {
+        let job_queue = JobQueue::new();
+        let batch_queue = BatchQueue::new(job_queue.clone());
+
+        let options = WebConvertOptions::default();
+        let mut batch = BatchJob::new(options.clone(), Priority::Normal);
+
+        // Create jobs for batch
+        let filenames = vec!["doc1.pdf", "doc2.pdf", "doc3.pdf"];
+        batch_queue.create_jobs(&mut batch, &filenames.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+
+        assert_eq!(batch.job_count(), 3);
+
+        batch.start();
+        batch_queue.submit(batch).await;
+
+        assert_eq!(batch_queue.active_count().await, 1);
+    }
+
+    // TC-BATCH-INT-003: Batch progress tracking
+    #[tokio::test]
+    async fn test_batch_progress_tracking() {
+        let job_queue = JobQueue::new();
+        let batch_queue = BatchQueue::new(job_queue.clone());
+
+        let options = WebConvertOptions::default();
+        let mut batch = BatchJob::new(options.clone(), Priority::High);
+
+        // Create 5 jobs
+        let filenames: Vec<String> = (0..5).map(|i| format!("file{}.pdf", i)).collect();
+        batch_queue.create_jobs(&mut batch, &filenames);
+
+        let batch_id = batch.id;
+        batch.start();
+        batch_queue.submit(batch).await;
+
+        // Complete some jobs
+        let retrieved = batch_queue.get(batch_id).await.unwrap();
+        for (i, job_id) in retrieved.job_ids.iter().take(3).enumerate() {
+            job_queue.update(*job_id, |j: &mut Job| {
+                if i < 2 {
+                    j.complete(PathBuf::from("/tmp/output.pdf"));
+                } else {
+                    j.fail("Test failure".to_string());
+                }
+            });
+        }
+
+        // Check progress
+        let progress = batch_queue.get_progress(batch_id).await.unwrap();
+        assert_eq!(progress.completed, 2);
+        assert_eq!(progress.failed, 1);
+        assert_eq!(progress.pending, 2);
+        assert_eq!(progress.total, 5);
+    }
+
+    // TC-BATCH-INT-004: Batch cancellation
+    #[tokio::test]
+    async fn test_batch_cancellation() {
+        let job_queue = JobQueue::new();
+        let batch_queue = BatchQueue::new(job_queue.clone());
+
+        let options = WebConvertOptions::default();
+        let mut batch = BatchJob::new(options.clone(), Priority::Normal);
+
+        // Create jobs
+        let filenames: Vec<String> = (0..3).map(|i| format!("doc{}.pdf", i)).collect();
+        batch_queue.create_jobs(&mut batch, &filenames);
+
+        let batch_id = batch.id;
+        batch_queue.submit(batch).await;
+
+        // Cancel the batch
+        let result = batch_queue.cancel(batch_id).await;
+        assert!(result.is_some());
+
+        let (cancelled, completed) = result.unwrap();
+        assert_eq!(cancelled, 3);
+        assert_eq!(completed, 0);
+
+        // Verify batch status
+        let batch = batch_queue.get(batch_id).await.unwrap();
+        assert_eq!(batch.status, BatchStatus::Cancelled);
+    }
+
+    // TC-BATCH-INT-005: Priority ordering
+    #[tokio::test]
+    async fn test_batch_priority() {
+        assert!(Priority::High.value() > Priority::Normal.value());
+        assert!(Priority::Normal.value() > Priority::Low.value());
+        assert_eq!(Priority::default(), Priority::Normal);
+    }
+
+    // TC-BATCH-INT-006: Batch progress calculation
+    #[tokio::test]
+    async fn test_batch_progress_calculation() {
+        let mut progress = BatchProgress::new(10);
+        assert_eq!(progress.percent(), 0);
+        assert!(!progress.is_complete());
+
+        progress.completed = 5;
+        progress.pending = 5;
+        assert_eq!(progress.percent(), 50);
+
+        progress.completed = 10;
+        progress.pending = 0;
+        assert_eq!(progress.percent(), 100);
+        assert!(progress.is_complete());
+    }
+
+    // TC-BATCH-INT-007: Batch list
+    #[tokio::test]
+    async fn test_batch_list() {
+        let job_queue = JobQueue::new();
+        let batch_queue = BatchQueue::new(job_queue);
+
+        // Submit multiple batches
+        let options = WebConvertOptions::default();
+        for priority in [Priority::Low, Priority::Normal, Priority::High] {
+            let batch = BatchJob::new(options.clone(), priority);
+            batch_queue.submit(batch).await;
+        }
+
+        let batches = batch_queue.list().await;
+        assert_eq!(batches.len(), 3);
+    }
+
+    // TC-BATCH-INT-008: Batch update closure
+    #[tokio::test]
+    async fn test_batch_update() {
+        let job_queue = JobQueue::new();
+        let batch_queue = BatchQueue::new(job_queue);
+
+        let options = WebConvertOptions::default();
+        let batch = BatchJob::new(options, Priority::Normal);
+        let batch_id = batch.id;
+
+        batch_queue.submit(batch).await;
+
+        // Update batch
+        batch_queue
+            .update(batch_id, |b| {
+                b.start();
+            })
+            .await;
+
+        let retrieved = batch_queue.get(batch_id).await.unwrap();
+        assert_eq!(retrieved.status, BatchStatus::Processing);
+        assert!(retrieved.started_at.is_some());
     }
 }

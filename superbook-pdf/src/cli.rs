@@ -118,6 +118,18 @@ pub struct ServeArgs {
     /// Job timeout in seconds
     #[arg(long, default_value = "3600")]
     pub job_timeout: u64,
+
+    /// Enable CORS (default: enabled)
+    #[arg(long, default_value = "true")]
+    pub cors: bool,
+
+    /// Allowed CORS origins (can be specified multiple times)
+    #[arg(long = "cors-origin")]
+    pub cors_origins: Vec<String>,
+
+    /// Disable CORS
+    #[arg(long)]
+    pub no_cors: bool,
 }
 
 /// Arguments for the convert command

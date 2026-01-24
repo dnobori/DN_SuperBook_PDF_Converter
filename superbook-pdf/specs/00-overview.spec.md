@@ -85,14 +85,23 @@ superbook-pdf は、スキャンされた書籍PDFを高品質なデジタル書
 
 | 項目 | 状態 | 備考 |
 |------|------|------|
-| テスト | ✅ 1,239件 | 全てパス、Clippy警告0件 |
+| テスト | ✅ 1,418件 | 全てパス、Clippy警告0件 |
 | メモリ使用量 | ✅ 0.4-0.8GB | C#版の1/30 |
 | C#→Rust移行 | ✅ 100% | 全機能移植完了 |
 | main.rs リファクタリング | ✅ 完了 | 1,234行→394行 (68%削減) |
 | パイプラインモジュール | ✅ 完了 | 13ステップ完全実装 |
 | キャッシュ機能 | ✅ 完了 | sha256ベース |
 | Poppler対応 | ✅ 完了 | ImageMagickなしでも動作 |
+| Container/Podman | ✅ 完了 | Rust版Containerfile |
 | Web API (v0.4.0) | ✅ 完了 | REST API + WebUI |
+| WebSocket (v0.5.0) | ✅ 完了 | リアルタイム進捗更新 |
+| Batch API (v0.6.0) | ✅ 完了 | 複数PDF一括処理 |
+| Metrics API (v0.7.0) | ✅ 完了 | Prometheus形式統計 |
+| Rate Limit (v0.8.0) | ✅ 完了 | Token Bucket レートリミット |
+| Auth API (v0.9.0) | ✅ 完了 | APIキー認証 |
+| Persistence (v1.0.0) | ✅ 完了 | ジョブ永続化 |
+| Graceful Shutdown (v1.1.0) | ✅ 完了 | 安全なシャットダウン |
+| CORS (v1.2.0) | ✅ 完了 | サーバー統合完了 |
 
 ## 外部依存
 
@@ -142,3 +151,45 @@ open http://localhost:8080/
 | `DELETE /api/jobs/:id` | ジョブキャンセル |
 | `GET /api/jobs/:id/download` | 結果ダウンロード |
 | `GET /api/health` | ヘルスチェック |
+
+### Batch API (v0.6.0)
+
+| エンドポイント | 説明 |
+|---------------|------|
+| `POST /api/batch` | バッチジョブ作成 |
+| `GET /api/batch/:id` | バッチ状態取得 |
+| `GET /api/batch/:id/jobs` | 個別ジョブ一覧 |
+| `DELETE /api/batch/:id` | バッチキャンセル |
+
+### Metrics API (v0.7.0)
+
+| エンドポイント | 説明 |
+|---------------|------|
+| `GET /api/metrics` | Prometheus形式メトリクス |
+| `GET /api/stats` | JSON形式統計 |
+
+### Rate Limit API (v0.8.0)
+
+| エンドポイント | 説明 |
+|---------------|------|
+| `GET /api/rate-limit/status` | レートリミット状態取得 |
+
+### Auth API (v0.9.0)
+
+| エンドポイント | 説明 |
+|---------------|------|
+| `GET /api/auth/status` | 認証状態取得 |
+
+### Persistence API (v1.0.0)
+
+| エンドポイント | 説明 |
+|---------------|------|
+| `GET /api/jobs/history` | ジョブ履歴取得 |
+| `POST /api/jobs/:id/retry` | 失敗ジョブのリトライ |
+
+### WebSocket API (v0.5.0)
+
+| エンドポイント | 説明 |
+|---------------|------|
+| `WS /ws/jobs/:id` | ジョブ進捗リアルタイム更新 |
+| `WS /ws/batch/:id` | バッチ進捗リアルタイム更新 |
