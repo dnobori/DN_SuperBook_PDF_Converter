@@ -197,7 +197,10 @@ pub use cache::{
     should_skip_processing, CacheDigest, ProcessingCache, ProcessingResult, CACHE_EXTENSION,
     CACHE_VERSION,
 };
-pub use pipeline::{PdfPipeline, PipelineConfig, PipelineError, PipelineResult};
+pub use pipeline::{
+    PdfPipeline, PipelineConfig, PipelineError, PipelineResult, ProcessingContext,
+    ProgressCallback, SilentProgress,
+};
 
 /// Exit codes for CLI (deprecated: prefer using `ExitCode` enum)
 ///
