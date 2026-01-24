@@ -452,7 +452,14 @@ impl PdfPipeline {
         let deskew_options = crate::DeskewOptions::default();
         let output_paths: Vec<PathBuf> = images
             .iter()
-            .map(|img| deskewed_dir.join(img.file_name().unwrap()))
+            .enumerate()
+            .map(|(idx, img)| {
+                let name = img
+                    .file_name()
+                    .map(|n| n.to_os_string())
+                    .unwrap_or_else(|| std::ffi::OsString::from(format!("page_{:04}.png", idx)));
+                deskewed_dir.join(name)
+            })
             .collect();
 
         let results: Vec<PathBuf> = images
@@ -499,7 +506,14 @@ impl PdfPipeline {
 
         let output_paths: Vec<PathBuf> = images
             .iter()
-            .map(|img| trimmed_dir.join(img.file_name().unwrap()))
+            .enumerate()
+            .map(|(idx, img)| {
+                let name = img
+                    .file_name()
+                    .map(|n| n.to_os_string())
+                    .unwrap_or_else(|| std::ffi::OsString::from(format!("page_{:04}.png", idx)));
+                trimmed_dir.join(name)
+            })
             .collect();
 
         let results: Vec<PathBuf> = images

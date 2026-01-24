@@ -322,7 +322,7 @@ impl ColorAnalyzer {
             .map(|(i, s)| (i, s.paper_luminance()))
             .collect();
 
-        luminances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        luminances.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         // Calculate median
         let median = Self::percentile_f64(
@@ -332,7 +332,7 @@ impl ColorAnalyzer {
 
         // Calculate MAD
         let mut deviations: Vec<f64> = luminances.iter().map(|(_, l)| (l - median).abs()).collect();
-        deviations.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        deviations.sort_by(|a, b| a.total_cmp(b));
         let mad = Self::percentile_f64(&deviations, 50.0);
 
         // Filter out outliers (> 1.5 * MAD from median)
@@ -555,7 +555,7 @@ impl ColorAnalyzer {
             return 0.0;
         }
         let mut sorted = values.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
 
         let rank = (p / 100.0) * (sorted.len() - 1) as f64;
         let lo = rank.floor() as usize;
