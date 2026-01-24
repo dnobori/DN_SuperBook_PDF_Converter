@@ -416,14 +416,27 @@ impl PrintPdfWriter {
         let layer_ref = doc.get_page(page).get_layer(layer);
 
         // Calculate transform to fit image to page
-        // Image should fill the entire page
+        // printpdf uses points (72 per inch) for scaling
+        // We need to convert from pixels to points, then scale to fit the page
+        let dpi = 300.0_f32;
+        let img_width_pt = img_width as f32 * 72.0 / dpi;
+        let img_height_pt = img_height as f32 * 72.0 / dpi;
+
+        // Target size in points (mm to points: mm * 72 / 25.4)
+        let width_pt = width_mm * 72.0 / MM_PER_INCH;
+        let height_pt = height_mm * 72.0 / MM_PER_INCH;
+
+        // Scale factors to fit image to page
+        let scale_x = width_pt / img_width_pt;
+        let scale_y = height_pt / img_height_pt;
+
         let transform = ImageTransform {
             translate_x: Some(Mm(0.0)),
             translate_y: Some(Mm(0.0)),
-            scale_x: Some(width_mm / (img_width as f32 / 72.0 * MM_PER_INCH / 72.0)),
-            scale_y: Some(height_mm / (img_height as f32 / 72.0 * MM_PER_INCH / 72.0)),
+            scale_x: Some(scale_x),
+            scale_y: Some(scale_y),
             rotate: None,
-            dpi: Some(300.0),
+            dpi: Some(dpi),
         };
 
         image.add_to_layer(layer_ref, transform);
