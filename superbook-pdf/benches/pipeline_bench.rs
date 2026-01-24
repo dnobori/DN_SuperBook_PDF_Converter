@@ -440,6 +440,36 @@ fn bench_finalize_structures(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark progress tracking structures
+fn bench_progress_structures(c: &mut Criterion) {
+    use superbook_pdf::{OutputMode, ProcessingStage, ProgressTracker};
+
+    let mut group = c.benchmark_group("progress_structures");
+
+    group.bench_function("ProcessingStage::name", |b| {
+        b.iter(|| black_box(ProcessingStage::Extracting.name()))
+    });
+
+    group.bench_function("ProcessingStage::description_ja", |b| {
+        b.iter(|| black_box(ProcessingStage::Deskewing.description_ja()))
+    });
+
+    group.bench_function("OutputMode::should_show", |b| {
+        let mode = OutputMode::Verbose;
+        b.iter(|| black_box(mode.should_show(OutputMode::Normal)))
+    });
+
+    group.bench_function("ProgressTracker::new", |b| {
+        b.iter(|| black_box(ProgressTracker::new(10, OutputMode::Quiet)))
+    });
+
+    group.bench_function("build_progress_bar", |b| {
+        b.iter(|| black_box(superbook_pdf::build_progress_bar(50)))
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_option_builders,
@@ -457,6 +487,8 @@ criterion_group!(
     bench_group_crop_structures,
     bench_page_offset_structures,
     bench_finalize_structures,
+    // Progress tracking benchmarks
+    bench_progress_structures,
 );
 
 criterion_main!(benches);
