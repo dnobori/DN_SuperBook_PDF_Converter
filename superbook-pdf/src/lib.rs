@@ -148,6 +148,8 @@ pub use cli::{
     create_page_progress_bar, create_progress_bar, create_spinner, CacheInfoArgs, Cli, Commands,
     ConvertArgs, ExitCode,
 };
+#[cfg(feature = "web")]
+pub use cli::ServeArgs;
 pub use config::{
     AdvancedConfig, CliOverrides, Config, ConfigError, GeneralConfig, OcrConfig, OutputConfig,
     ProcessingConfig,

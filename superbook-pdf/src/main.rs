@@ -20,6 +20,9 @@ use superbook_pdf::{
     ProgressTracker,
 };
 
+#[cfg(feature = "web")]
+use superbook_pdf::{ServeArgs, ServerConfig, WebServer};
+
 fn main() {
     let cli = Cli::parse();
 
@@ -27,6 +30,8 @@ fn main() {
         Commands::Convert(args) => run_convert(&args),
         Commands::Info => run_info(),
         Commands::CacheInfo(args) => run_cache_info(&args),
+        #[cfg(feature = "web")]
+        Commands::Serve(args) => run_serve(&args),
     };
 
     std::process::exit(match result {
@@ -581,6 +586,26 @@ fn run_cache_info(args: &CacheInfoArgs) -> Result<(), Box<dyn std::error::Error>
             println!("Reason: {}", e);
         }
     }
+
+    Ok(())
+}
+
+// ============ Serve Command (Web Server) ============
+
+#[cfg(feature = "web")]
+fn run_serve(args: &ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let config = ServerConfig::default()
+        .with_port(args.port)
+        .with_bind(&args.bind)
+        .with_upload_limit(args.upload_limit * 1024 * 1024);
+
+    let server = WebServer::with_config(config);
+
+    // Create tokio runtime and run the server
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        server.run().await.map_err(|e| e.to_string())
+    })?;
 
     Ok(())
 }

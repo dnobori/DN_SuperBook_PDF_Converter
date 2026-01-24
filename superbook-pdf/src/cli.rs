@@ -86,6 +86,9 @@ pub enum Commands {
     Info,
     /// Show cache information for a processed file
     CacheInfo(CacheInfoArgs),
+    /// Start web server for browser-based conversion
+    #[cfg(feature = "web")]
+    Serve(ServeArgs),
 }
 
 /// Arguments for the cache-info command
@@ -94,6 +97,27 @@ pub struct CacheInfoArgs {
     /// Path to the output PDF file (to show cache info)
     #[arg(value_name = "OUTPUT_PDF")]
     pub output_pdf: std::path::PathBuf,
+}
+
+/// Arguments for the serve command (web server)
+#[cfg(feature = "web")]
+#[derive(Args, Debug)]
+pub struct ServeArgs {
+    /// Port to listen on
+    #[arg(short, long, default_value = "8080")]
+    pub port: u16,
+
+    /// Address to bind to
+    #[arg(short, long, default_value = "127.0.0.1")]
+    pub bind: String,
+
+    /// Maximum upload size in MB
+    #[arg(long, default_value = "500")]
+    pub upload_limit: usize,
+
+    /// Job timeout in seconds
+    #[arg(long, default_value = "3600")]
+    pub job_timeout: u64,
 }
 
 /// Arguments for the convert command
