@@ -502,28 +502,39 @@ impl PdfPipeline {
         // Convert to PathBuf list
         let mut current_images: Vec<PathBuf> = extracted_pages.iter().map(|p| p.path.clone()).collect();
 
-        // Step 3: Deskew (if enabled)
-        if self.config.deskew {
-            current_images = self.step_deskew(&work_dir, &current_images, progress)?;
-        }
+        // ================================================================
+        // C#版互換処理順序:
+        // 1. PDF抽出 (上で完了)
+        // 2. マージントリム (0.5%)
+        // 3. AI超解像 (RealESRGAN 2x)
+        // 4. 内部解像度正規化 (4960x7016)
+        // 5. 傾き補正 (Deskew) ← C#はここで実行
+        // 6. 色補正
+        // ================================================================
 
-        // Step 4: Margin Trimming
+        // Step 2: Margin Trimming (C# does this first)
         // Note: margin_trim is a percentage, skip if 0
         if self.config.margin_trim > 0.0 {
             current_images = self.step_margin_trim(&work_dir, &current_images, progress)?;
         }
 
-        // Step 5: AI Upscaling (if enabled)
+        // Step 3: AI Upscaling (if enabled)
         if self.config.upscale {
             current_images = self.step_upscale(&work_dir, &current_images, progress)?;
         }
 
-        // Step 6: Internal Resolution Normalization (if enabled)
+        // Step 4: Internal Resolution Normalization (if enabled)
+        // C#: Fit to 4960x7016 with Lanczos3, padding with paper color
         if self.config.internal_resolution {
             current_images = self.step_normalize(&work_dir, &current_images, progress)?;
         }
 
-        // Step 7: Color Correction (if enabled)
+        // Step 5: Deskew (if enabled) - C# does deskew AFTER normalization
+        if self.config.deskew {
+            current_images = self.step_deskew(&work_dir, &current_images, progress)?;
+        }
+
+        // Step 6: Color Correction (if enabled)
         if self.config.color_correction {
             current_images = self.step_color_correction(&work_dir, &current_images, progress)?;
         }
