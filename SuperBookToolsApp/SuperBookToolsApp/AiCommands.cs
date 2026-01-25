@@ -58,12 +58,15 @@ namespace SuperBookTools.App
     {
         [ConsoleCommand(
             "ConvertPdf command",
-            "ConvertPdf [srcDir] [/dst:dstDir] [/ocr:yes|no] [/skip:yes|no]",
+            "ConvertPdf [srcDir] [/dst:dstDir] [/ocr:yes|no] [/skip:yes|no] [/margin:N] [/max-pages:N] [/debug:yes|no]",
             "Convert PDF files with image enhancement and OCR.\n" +
             "Options:\n" +
-            "  /dst:path    - Destination directory (required)\n" +
-            "  /ocr:yes|no  - Perform Japanese AI-OCR using YomiToku (default: no)\n" +
-            "  /skip:yes|no - Skip RealEsrgan image enhancement (default: no)")]
+            "  /dst:path       - Destination directory (required)\n" +
+            "  /ocr:yes|no     - Perform Japanese AI-OCR using YomiToku (default: no)\n" +
+            "  /skip:yes|no    - Skip RealEsrgan image enhancement (default: no)\n" +
+            "  /margin:N       - Margin percentage for trimming (default: 7)\n" +
+            "  /max-pages:N    - Maximum pages to process, for testing (default: unlimited)\n" +
+            "  /debug:yes|no   - Save debug PNG files (default: no)")]
         public static async Task<int> ConvertPdf(ConsoleService c, string cmdName, string str)
         {
             ConsoleParam[] args =
@@ -72,6 +75,9 @@ namespace SuperBookTools.App
                 new ConsoleParam("dst", ConsoleService.Prompt, "Destination directory path: ", ConsoleService.EvalNotEmpty, null),
                 new ConsoleParam("ocr", ConsoleService.Prompt, "Perform Japanese High-Quality OCR? (Y/N): ", null, null),
                 new ConsoleParam("skip", null, null, null, null),
+                new ConsoleParam("margin", null, null, null, null),
+                new ConsoleParam("max-pages", null, null, null, null),
+                new ConsoleParam("debug", null, null, null, null),
             };
             ConsoleParamValueList vl = c.ParseCommandList(cmdName, str, args);
 
@@ -92,10 +98,22 @@ namespace SuperBookTools.App
             await Lfs.CreateDirectoryAsync(dstDir);
 
             bool skipRealesrgan = vl["skip"].BoolValue;
+            int marginPercent = vl["margin"].IntValue > 0 ? vl["margin"].IntValue : 7;
+            int maxPages = vl["max-pages"].IntValue > 0 ? vl["max-pages"].IntValue : int.MaxValue;
+            bool saveDebugPng = vl["debug"].BoolValue;
 
-            SuperPerformPdfOptions options = new SuperPerformPdfOptions { SkipRealesrgan = skipRealesrgan };
+            SuperPerformPdfOptions options = new SuperPerformPdfOptions
+            {
+                SkipRealesrgan = skipRealesrgan,
+                MarginPercent = marginPercent,
+                MaxPagesForDebug = maxPages,
+                SaveDebugPng = saveDebugPng,
+            };
 
             bool performOcr = vl["ocr"].BoolValue;
+
+            // Print active options
+            $"- Options: margin={marginPercent}%, max-pages={( maxPages == int.MaxValue ? "unlimited" : maxPages.ToString() )}, skip={skipRealesrgan}, ocr={performOcr}, debug={saveDebugPng}"._Print();
 
             if (skipRealesrgan)
             {
