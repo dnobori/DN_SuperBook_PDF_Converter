@@ -4,10 +4,10 @@
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
 
 > **Fork of [dnobori/DN_SuperBook_PDF_Converter](https://github.com/dnobori/DN_SuperBook_PDF_Converter)**
->
+>[フォーク元の素晴らしき芸術的なREADME.md](https://github.com/dnobori/DN_SuperBook_PDF_Converter/blob/master/README.md) : 正直、これを読めばすべてがわかる
 > Rust で完全リライトしたスキャン書籍 PDF 高品質化ツール
 
-**オリジナル著者:** 登 大遊 (Daiyuu Nobori)
+**オリジナル著者:** 登 大遊 (Daiyuu Nobori) 様
 **Rust リライト:** clearclown
 **ライセンス:** AGPL v3.0
 
@@ -64,7 +64,9 @@
 # Ubuntu/Debian
 sudo apt update
 sudo apt install -y poppler-utils python3 python3-venv
+```
 
+```sh
 # Fedora
 sudo dnf install -y poppler-utils python3
 ```
