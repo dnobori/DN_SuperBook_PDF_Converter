@@ -438,5 +438,9 @@ Windows 上の Chrome や Acrobat Reader は、大量のページがある書籍
 これにより、日本人は、米国や欧羅巴はもちろん近年力を付けつつある諸外国の人材と同等以上の競争力を、手に入れ、維持し、ふたたび、さまざまな領域で、世界貢献できるようになるのである。
 
 
+# 10. 派生ソフトウェア
+- [book-pdf-converter](https://github.com/robios/book-pdf-converter) - 本ソフトウェア v1.00 の Python/Cython 移植版。macOS (Apple Silicon) / Linux / Windows 対応。
+
+
 糸冬了！！
 
