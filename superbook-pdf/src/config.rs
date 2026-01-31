@@ -78,6 +78,84 @@ pub struct ProcessingConfig {
     /// Enable GPU processing
     #[serde(default)]
     pub gpu: Option<bool>,
+
+    // Issue #32: Content-aware margins
+    /// Enable content-aware margin detection
+    #[serde(default)]
+    pub content_aware_margins: Option<bool>,
+
+    /// Safety buffer percentage for margins (0.0-5.0)
+    #[serde(default)]
+    pub margin_safety: Option<f32>,
+
+    /// Enable aggressive trimming
+    #[serde(default)]
+    pub aggressive_trim: Option<bool>,
+
+    // Issue #33: Shadow removal
+    /// Shadow removal mode (none, auto, left, right, both)
+    #[serde(default)]
+    pub shadow_removal: Option<String>,
+}
+
+/// Cleanup configuration (Issue #34-35)
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct CleanupConfig {
+    /// Enable marker/highlighter removal
+    #[serde(default)]
+    pub marker_removal: Option<bool>,
+
+    /// Highlighter colors to remove
+    #[serde(default)]
+    pub highlighter_colors: Option<Vec<String>>,
+
+    /// Enable deblur processing
+    #[serde(default)]
+    pub deblur: Option<bool>,
+
+    /// Deblur algorithm (unsharp_mask, nafnet, deblurgan_v2)
+    #[serde(default)]
+    pub deblur_algorithm: Option<String>,
+}
+
+/// Markdown conversion configuration (Issue #36)
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct MarkdownConfig {
+    /// Extract images from PDF
+    #[serde(default)]
+    pub extract_images: Option<bool>,
+
+    /// Detect and convert tables
+    #[serde(default)]
+    pub detect_tables: Option<bool>,
+
+    /// Text direction (auto, horizontal, vertical)
+    #[serde(default)]
+    pub text_direction: Option<String>,
+
+    /// Include page numbers in output
+    #[serde(default)]
+    pub include_page_numbers: Option<bool>,
+
+    /// Generate metadata JSON
+    #[serde(default)]
+    pub generate_metadata: Option<bool>,
+
+    /// Validation settings
+    #[serde(default)]
+    pub validation: Option<MarkdownValidationConfig>,
+}
+
+/// Markdown validation configuration
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct MarkdownValidationConfig {
+    /// Enable validation
+    #[serde(default)]
+    pub enabled: Option<bool>,
+
+    /// API provider (claude, openai, local)
+    #[serde(default)]
+    pub provider: Option<String>,
 }
 
 /// Advanced processing configuration
@@ -146,6 +224,14 @@ pub struct Config {
     /// Output settings
     #[serde(default)]
     pub output: OutputConfig,
+
+    /// Cleanup settings (Issue #34-35)
+    #[serde(default)]
+    pub cleanup: CleanupConfig,
+
+    /// Markdown conversion settings (Issue #36)
+    #[serde(default)]
+    pub markdown: MarkdownConfig,
 }
 
 impl Config {
@@ -467,6 +553,7 @@ deskew = true
                 margin_trim: Some(1.0),
                 upscale: Some(true),
                 gpu: Some(true),
+                ..Default::default()
             },
             advanced: AdvancedConfig {
                 internal_resolution: Some(true),
@@ -482,6 +569,7 @@ deskew = true
                 jpeg_quality: Some(95),
                 ..Default::default()
             },
+            ..Default::default()
         };
 
         let pipeline = config.to_pipeline_config();

@@ -92,6 +92,8 @@ pub enum Commands {
     Convert(ConvertArgs),
     /// Reprocess failed pages from a previous conversion
     Reprocess(ReprocessArgs),
+    /// Convert PDF to Markdown format
+    Markdown(MarkdownArgs),
     /// Show system information
     Info,
     /// Show cache information for a processed file
@@ -107,6 +109,143 @@ pub struct CacheInfoArgs {
     /// Path to the output PDF file (to show cache info)
     #[arg(value_name = "OUTPUT_PDF")]
     pub output_pdf: std::path::PathBuf,
+}
+
+/// Shadow removal mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum ShadowRemovalMode {
+    /// No shadow removal
+    None,
+    /// Automatic detection and removal
+    #[default]
+    Auto,
+    /// Remove shadow from left edge only
+    Left,
+    /// Remove shadow from right edge only
+    Right,
+    /// Remove shadow from both edges
+    Both,
+}
+
+/// Deblur algorithm for CLI
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum DeblurAlgorithmCli {
+    /// Unsharp mask (fast, local processing)
+    #[default]
+    UnsharpMask,
+    /// NAFNet AI deblurring (requires GPU)
+    Nafnet,
+    /// DeblurGAN-v2 AI deblurring (requires GPU)
+    DeblurganV2,
+}
+
+/// Text direction option for CLI
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum TextDirectionCli {
+    /// Automatic detection
+    #[default]
+    Auto,
+    /// Horizontal (left-to-right, top-to-bottom)
+    Horizontal,
+    /// Vertical (right-to-left, top-to-bottom) for Japanese
+    Vertical,
+}
+
+/// Validation provider for CLI
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum ValidationProviderCli {
+    /// Claude API
+    Claude,
+    /// OpenAI API
+    Openai,
+    /// Local LLM endpoint
+    #[default]
+    Local,
+}
+
+/// Arguments for the markdown command (Issue #36)
+#[derive(Args, Debug)]
+#[command(after_help = r#"
+Examples:
+  # 基本的なMarkdown変換
+  superbook-pdf markdown input.pdf -o output/
+
+  # 外部API検証付き
+  superbook-pdf markdown input.pdf -o output/ --validate --api-provider claude
+
+  # 縦書き指定
+  superbook-pdf markdown input.pdf -o output/ --text-direction vertical
+
+  # 画像抽出なし
+  superbook-pdf markdown input.pdf -o output/ --no-extract-images
+"#)]
+pub struct MarkdownArgs {
+    /// Input PDF file
+    pub input: PathBuf,
+
+    /// Output directory
+    #[arg(short = 'o', long = "output", default_value = "./markdown_output")]
+    pub output: PathBuf,
+
+    /// Text direction for reading order
+    #[arg(long, value_enum, default_value = "auto")]
+    pub text_direction: TextDirectionCli,
+
+    /// Extract images from PDF
+    #[arg(long, default_value_t = true)]
+    #[arg(action = clap::ArgAction::Set)]
+    pub extract_images: bool,
+
+    /// Disable image extraction
+    #[arg(long = "no-extract-images")]
+    #[arg(action = clap::ArgAction::SetTrue)]
+    no_extract_images: bool,
+
+    /// Enable table detection
+    #[arg(long, default_value_t = true)]
+    #[arg(action = clap::ArgAction::Set)]
+    pub detect_tables: bool,
+
+    /// Disable table detection
+    #[arg(long = "no-detect-tables")]
+    #[arg(action = clap::ArgAction::SetTrue)]
+    no_detect_tables: bool,
+
+    /// Include page numbers in output
+    #[arg(long)]
+    pub include_page_numbers: bool,
+
+    /// Generate metadata JSON file
+    #[arg(long)]
+    pub generate_metadata: bool,
+
+    /// Enable validation of output Markdown
+    #[arg(long)]
+    pub validate: bool,
+
+    /// API provider for validation
+    #[arg(long, value_enum, default_value = "local")]
+    pub api_provider: ValidationProviderCli,
+
+    /// Verbosity level (-v, -vv, -vvv)
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    pub verbose: u8,
+
+    /// Suppress progress output
+    #[arg(short, long)]
+    pub quiet: bool,
+}
+
+impl MarkdownArgs {
+    /// Get effective extract_images setting
+    pub fn effective_extract_images(&self) -> bool {
+        self.extract_images && !self.no_extract_images
+    }
+
+    /// Get effective detect_tables setting
+    pub fn effective_detect_tables(&self) -> bool {
+        self.detect_tables && !self.no_detect_tables
+    }
 }
 
 /// Arguments for the reprocess command
@@ -323,6 +462,48 @@ pub struct ConvertArgs {
     #[arg(long, short = 'f')]
     pub force: bool,
 
+    // === Content-Aware Margin Options (Issue #32) ===
+    /// Enable content-aware margin detection to prevent text clipping
+    #[arg(long, default_value_t = true)]
+    #[arg(action = clap::ArgAction::Set)]
+    pub content_aware_margins: bool,
+
+    /// Disable content-aware margin detection
+    #[arg(long = "no-content-aware-margins")]
+    #[arg(action = clap::ArgAction::SetTrue)]
+    no_content_aware_margins: bool,
+
+    /// Safety buffer percentage for content-aware margins (0.0-5.0)
+    #[arg(long, default_value_t = 0.5)]
+    pub margin_safety: f32,
+
+    /// Use aggressive trimming (may risk text clipping)
+    #[arg(long)]
+    pub aggressive_trim: bool,
+
+    // === Shadow Removal Options (Issue #33) ===
+    /// Shadow removal mode for book binding areas
+    #[arg(long, value_enum, default_value = "auto")]
+    pub shadow_removal: ShadowRemovalMode,
+
+    // === Marker Removal Options (Issue #34) ===
+    /// Enable highlighter/marker removal
+    #[arg(long)]
+    pub remove_markers: bool,
+
+    /// Colors to remove (comma-separated: yellow,pink,green,blue,orange)
+    #[arg(long, value_delimiter = ',', default_value = "yellow,pink,green,blue")]
+    pub marker_colors: Vec<String>,
+
+    // === Deblur Options (Issue #35) ===
+    /// Enable blur detection and correction
+    #[arg(long)]
+    pub deblur: bool,
+
+    /// Deblur algorithm to use
+    #[arg(long, value_enum, default_value = "unsharp-mask")]
+    pub deblur_algorithm: DeblurAlgorithmCli,
+
     // === Debug options ===
     /// Maximum pages to process (for debugging)
     #[arg(long)]
@@ -367,6 +548,11 @@ impl ConvertArgs {
     /// Get effective offset alignment setting (considering --advanced flag)
     pub fn effective_offset_alignment(&self) -> bool {
         self.offset_alignment || self.advanced
+    }
+
+    /// Get effective content-aware margins setting
+    pub fn effective_content_aware_margins(&self) -> bool {
+        self.content_aware_margins && !self.no_content_aware_margins
     }
 }
 

@@ -34,12 +34,30 @@ mod detect;
 mod group;
 mod types;
 
+// Phase 1 - Issue #32: Content-aware margin detection
+pub mod content_aware;
+
+// Phase 2 - Issue #33: Shadow detection and removal
+pub mod shadow;
+
 // Re-export public API
 pub use detect::ImageMarginDetector;
 pub use group::{GroupCropAnalyzer, GroupCropRegion, PageBoundingBox, UnifiedCropRegions};
 pub use types::{
     ContentRect, MarginDetection, MarginDetector, MarginError, Margins, Result, TrimResult,
     UnifiedMargins,
+};
+
+// Issue #32: Content-aware margin detection
+pub use content_aware::{
+    ContentAwareBoundaryDetector, ContentAwareOptions, ContentAwareOptionsBuilder,
+    ContentBoundaries, ContentBoundary,
+};
+
+// Issue #33: Shadow detection and removal
+pub use shadow::{
+    Edge, ShadowDetectionResult, ShadowDetector, ShadowHsvCriteria, ShadowRegion,
+    ShadowRemovalMethod, ShadowRemovalOptions,
 };
 
 // ============================================================

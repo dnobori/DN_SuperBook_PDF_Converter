@@ -141,19 +141,26 @@ pub mod vertical_detect;
 pub mod web;
 pub mod yomitoku;
 
+// Issue #32-35: Cleanup and enhancement modules
+pub mod cleanup;
+
+// Issue #36: Markdown conversion
+pub mod markdown;
+
 // Re-exports for convenience
 pub use ai_bridge::{
     AiBridgeConfig, AiBridgeConfigBuilder, AiBridgeError, AiTool, SubprocessBridge,
 };
 pub use cli::{
     create_page_progress_bar, create_progress_bar, create_spinner, CacheInfoArgs, Cli, Commands,
-    ConvertArgs, ExitCode, ReprocessArgs,
+    ConvertArgs, DeblurAlgorithmCli, ExitCode, MarkdownArgs, ReprocessArgs, ShadowRemovalMode,
+    TextDirectionCli, ValidationProviderCli,
 };
 #[cfg(feature = "web")]
 pub use cli::ServeArgs;
 pub use config::{
-    AdvancedConfig, CliOverrides, Config, ConfigError, GeneralConfig, OcrConfig, OutputConfig,
-    ProcessingConfig,
+    AdvancedConfig, CliOverrides, CleanupConfig, Config, ConfigError, GeneralConfig,
+    MarkdownConfig, MarkdownValidationConfig, OcrConfig, OutputConfig, ProcessingConfig,
 };
 pub use deskew::{
     DeskewAlgorithm, DeskewError, DeskewOptions, DeskewOptionsBuilder, DeskewResult,

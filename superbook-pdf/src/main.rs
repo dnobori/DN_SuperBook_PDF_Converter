@@ -11,7 +11,7 @@ use superbook_pdf::{
     // Cache module
     CacheDigest, ProcessingCache, should_skip_processing,
     // CLI
-    CacheInfoArgs, Cli, Commands, ConvertArgs, ReprocessArgs,
+    CacheInfoArgs, Cli, Commands, ConvertArgs, MarkdownArgs, ReprocessArgs,
     // Config
     CliOverrides, Config,
     // Pipeline
@@ -31,6 +31,7 @@ fn main() {
     let result = match cli.command {
         Commands::Convert(args) => run_convert(&args),
         Commands::Reprocess(args) => run_reprocess(&args),
+        Commands::Markdown(args) => run_markdown(&args),
         Commands::Info => run_info(),
         Commands::CacheInfo(args) => run_cache_info(&args),
         #[cfg(feature = "web")]
@@ -779,6 +780,93 @@ fn print_reprocess_status(state: &ReprocessState) {
             }
         }
     }
+}
+
+// ============ Markdown Command ============
+
+fn run_markdown(args: &MarkdownArgs) -> Result<(), Box<dyn std::error::Error>> {
+    use superbook_pdf::markdown::{
+        MarkdownConverter, MarkdownOptions, TextDirectionOption,
+    };
+
+    let start_time = Instant::now();
+
+    // Validate input
+    if !args.input.exists() {
+        return Err(format!("Input file not found: {}", args.input.display()).into());
+    }
+
+    if !args.quiet {
+        println!("PDF to Markdown Conversion");
+        println!("==========================");
+        println!("Input:  {}", args.input.display());
+        println!("Output: {}", args.output.display());
+        println!();
+    }
+
+    // Build options
+    let text_direction = match args.text_direction {
+        superbook_pdf::TextDirectionCli::Auto => TextDirectionOption::Auto,
+        superbook_pdf::TextDirectionCli::Horizontal => TextDirectionOption::Horizontal,
+        superbook_pdf::TextDirectionCli::Vertical => TextDirectionOption::Vertical,
+    };
+
+    let api_provider = if args.validate {
+        Some(match args.api_provider {
+            superbook_pdf::ValidationProviderCli::Claude => "claude".to_string(),
+            superbook_pdf::ValidationProviderCli::Openai => "openai".to_string(),
+            superbook_pdf::ValidationProviderCli::Local => "local".to_string(),
+        })
+    } else {
+        None
+    };
+
+    let options = MarkdownOptions::builder()
+        .text_direction(text_direction)
+        .extract_images(args.effective_extract_images())
+        .detect_tables(args.effective_detect_tables())
+        .include_page_numbers(args.include_page_numbers)
+        .generate_metadata(args.generate_metadata)
+        .validate(args.validate)
+        .api_provider_opt(api_provider)
+        .build();
+
+    // Create converter and run
+    let converter = MarkdownConverter::with_options(options);
+    let result = converter.convert(&args.input, &args.output)?;
+
+    let elapsed = start_time.elapsed();
+
+    // Print summary
+    if !args.quiet {
+        println!("=== Conversion Summary ===");
+        println!("Pages processed:  {}", result.pages_processed);
+        println!("Text blocks:      {}", result.total_blocks);
+        println!("Output file:      {}", result.output_path.display());
+
+        if !result.extracted_images.is_empty() {
+            println!("Images extracted: {}", result.extracted_images.len());
+        }
+
+        if let Some(meta_path) = &result.metadata_path {
+            println!("Metadata:         {}", meta_path.display());
+        }
+
+        if let Some(validation) = &result.validation {
+            println!();
+            println!("Validation:");
+            println!("  Valid:      {}", if validation.valid { "Yes" } else { "No" });
+            println!("  Confidence: {:.1}%", validation.confidence * 100.0);
+            if !validation.issues.is_empty() {
+                println!("  Issues:     {}", validation.issues.len());
+            }
+        }
+
+        println!();
+        println!("Time elapsed: {:.2}s", elapsed.as_secs_f64());
+    }
+
+    Ok(())
 }
 
 // ============ Serve Command (Web Server) ============
