@@ -2,7 +2,7 @@
 name = "superbook-pdf"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.78"
 license = "AGPL-3.0"
 description = "High-quality PDF converter for scanned books with AI enhancement, deskew correction, and Japanese OCR"
 authors = ["clearclown", "Daiyuu Nobori <original author>"]

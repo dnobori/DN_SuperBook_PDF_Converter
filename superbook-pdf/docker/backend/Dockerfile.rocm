@@ -2,7 +2,7 @@
 # Multi-stage build for minimal image size
 
 # ===== Stage 1: Build Rust binary =====
-FROM docker.io/rust:1.75-bookworm AS builder
+FROM docker.io/rust:1.85-bookworm AS builder
 
 # Install dependencies for building
 RUN apt-get update && apt-get install -y --no-install-recommends \
