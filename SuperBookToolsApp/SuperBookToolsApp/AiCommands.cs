@@ -31,11 +31,11 @@ namespace SuperBookTools.App
     public static class SuperBookExternalTools
     {
         public static readonly ImageMagickUtil ImageMagick = new ImageMagickUtil(new ImageMagickOptions(
-            Path.Combine(Env.AppRootDir, @"..\external_tools\external_tools\image_tools\ImageMagick-portable-Q16-HDRI-x64\magick.exe"),
-            Path.Combine(Env.AppRootDir, @"..\external_tools\external_tools\image_tools\ImageMagick-portable-Q16-HDRI-x64\mogrify.exe"),
-            Path.Combine(Env.AppRootDir, @"..\external_tools\external_tools\image_tools\exiftool-13.30_64\exiftool.exe"),
-            Path.Combine(Env.AppRootDir, @"..\external_tools\external_tools\image_tools\QPDF\bin\qpdf.exe"),
-            Path.Combine(Env.AppRootDir, @"..\external_tools\external_tools\image_tools\pdfcpu\pdfcpu.exe")
+            "/opt/homebrew/bin/magick",
+            "/opt/homebrew/bin/magick",
+            "/opt/homebrew/bin/exiftool",
+            "/opt/homebrew/bin/qpdf",
+            "/opt/homebrew/bin/pdfcpu"
         ));
 
         public static readonly FfMpegUtil FfMpeg = new FfMpegUtil(new FfMpegUtilOptions(

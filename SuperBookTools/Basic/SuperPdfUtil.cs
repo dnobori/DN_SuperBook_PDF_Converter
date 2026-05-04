@@ -504,7 +504,7 @@ public class PdfYomitokuLib
         CancellationToken cancel = default)
     {
         return await RunBatchCommandsDirectAsync(
-            BuildLines(@".\venv\Scripts\activate",
+            BuildLines("source ./venv/bin/activate",
             commandLines),
             timeout,
             throwOnErrorExitCode,
@@ -524,7 +524,7 @@ public class PdfYomitokuLib
     {
         if (easyOutputMaxSize <= 0) easyOutputMaxSize = CoresConfig.DefaultAiUtilSettings.DefaultMaxStdOutBufferSize;
 
-        string win32cmd = Env.Win32_SystemDir._CombinePath("cmd.exe");
+        string win32cmd = "/bin/bash";
 
         commandLines = BuildLines(commandLines, "exit");
 

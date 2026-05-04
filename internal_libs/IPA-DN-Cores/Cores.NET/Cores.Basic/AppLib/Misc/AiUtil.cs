@@ -3647,7 +3647,7 @@ public class AiUtilFishAudioEngine : AiUtilVoiceVoxEngine
     {
         var ret = await TaskUtil.RetryAsync(async c =>
         {
-            ExecInstance exec = new ExecInstance(new ExecOptions(Settings.AiTest_FishAudio_BaseDir._CombinePath("venv", "Scripts", "python.exe"),
+            ExecInstance exec = new ExecInstance(new ExecOptions(Settings.AiTest_FishAudio_BaseDir._CombinePath("venv", "bin", "python"),
                 $"-m tools.api_server --listen 127.0.0.1:{this.Settings.FishAudioLocalhostPort} --llama-checkpoint-path \"checkpoints\\openaudio-s1-mini\" --decoder-checkpoint-path \"checkpoints\\openaudio-s1-mini\\codec.pth\" --decoder-config-name modded_dac_vq",
                 Settings.AiTest_FishAudio_BaseDir));
 
@@ -4365,7 +4365,7 @@ public class AiUtilBasicEngine : AsyncService
         CancellationToken cancel = default)
     {
         return await RunBatchCommandsDirectAsync(
-            BuildLines(@".\venv\Scripts\activate",
+            BuildLines("source ./venv/bin/activate",
             commandLines),
             timeout,
             throwOnErrorExitCode,
@@ -4385,7 +4385,7 @@ public class AiUtilBasicEngine : AsyncService
     {
         if (easyOutputMaxSize <= 0) easyOutputMaxSize = CoresConfig.DefaultAiUtilSettings.DefaultMaxStdOutBufferSize;
 
-        string win32cmd = Env.Win32_SystemDir._CombinePath("cmd.exe");
+        string win32cmd = "/bin/bash";
 
         commandLines = BuildLines(commandLines, "exit");
 
